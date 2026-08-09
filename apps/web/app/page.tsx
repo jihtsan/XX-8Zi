@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { CatalogGridBackground } from "@/components/catalog-grid-background";
 import { MineralOrbit } from "@/components/mineral-orbit";
 import { ProductCard } from "@/components/product-card";
 import { Reveal } from "@/components/reveal";
@@ -61,6 +62,7 @@ export default async function Home() {
               <ProductCard product={product} />
             </Reveal>
           ))}
+          <CatalogGridBackground />
         </div>
       </section>
 

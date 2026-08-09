@@ -35,6 +35,8 @@ test("server-renders the finished storefront", async () => {
   assert.match(html, /asset\/picture\/amethyst-star-orbit\.jpg/);
   assert.match(html, /asset\/picture\/green-phantom-garden\.jpg/);
   assert.match(html, /asset\/picture\/gold-rutile-current\.jpg/);
+  assert.match(html, /catalog-grid-background/);
+  assert.match(html, /MINERAL FIELD \/ 03/);
   assert.match(html, /立即购买|浏览档案/);
   assert.doesNotMatch(html, /codex-preview|Your site is taking shape|SkeletonPreview/);
 });
