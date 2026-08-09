@@ -27,7 +27,14 @@ test("server-renders the finished storefront", async () => {
   assert.match(html, /planet-textures\/jupiter\.jpg/);
   assert.match(html, /MINERAL SIGNAL \/ 06/);
   assert.equal(html.match(/mineral-fallback-bead/g)?.length, 6);
-  assert.match(html, /紫晶轨道/);
+  assert.match(html, /SPECIMEN INDEX \/ /);
+  assert.match(html, />03</);
+  assert.match(html, /紫晶星轨/);
+  assert.match(html, /绿幽灵庭/);
+  assert.match(html, /金发晶流光/);
+  assert.match(html, /asset\/picture\/amethyst-star-orbit\.jpg/);
+  assert.match(html, /asset\/picture\/green-phantom-garden\.jpg/);
+  assert.match(html, /asset\/picture\/gold-rutile-current\.jpg/);
   assert.match(html, /立即购买|浏览档案/);
   assert.doesNotMatch(html, /codex-preview|Your site is taking shape|SkeletonPreview/);
 });

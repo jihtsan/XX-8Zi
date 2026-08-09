@@ -17,10 +17,10 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000"),
   title: "玄序 · 矿物与珠串档案",
-  description: "水晶手串、佛珠与天然饰品的数字档案商城。",
+  description: "天然水晶手串的数字档案商城。",
   openGraph: {
     title: "玄序 · 矿物与珠串档案",
-    description: "水晶手串、佛珠与天然饰品的数字档案商城。",
+    description: "天然水晶手串的数字档案商城。",
     images: [{ url: "/og.png", width: 1731, height: 909, alt: "玄序矿物与珠串档案" }],
     locale: "zh_CN",
     type: "website",
@@ -28,7 +28,7 @@ export const metadata: Metadata = {
   twitter: {
     card: "summary_large_image",
     title: "玄序 · 矿物与珠串档案",
-    description: "水晶手串、佛珠与天然饰品的数字档案商城。",
+    description: "天然水晶手串的数字档案商城。",
     images: ["/og.png"],
   },
 };

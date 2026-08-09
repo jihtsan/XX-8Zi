@@ -183,17 +183,13 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
   position: relative;
   min-height: 570px;
   overflow: hidden;
-  background:
-    radial-gradient(circle at 50% 48%, color-mix(in srgb, var(--bead-glow) 16%, transparent), transparent 28%),
-    linear-gradient(145deg, #171717, #0d0d0d);
+  background: #111;
   border: 1px solid var(--line-dark);
 }
 .product-visual-compact { min-height: 410px; }
-.visual-grid { position: absolute; inset: 0; opacity: .2; background-image: linear-gradient(var(--line-dark) 1px, transparent 1px), linear-gradient(90deg, var(--line-dark) 1px, transparent 1px); background-size: 42px 42px; mask-image: linear-gradient(to bottom, black, transparent 85%); }
-.bead-ring { position: absolute; width: min(66%, 370px); aspect-ratio: 1; left: 50%; top: 48%; transform: translate(-50%, -50%); }
-.bead-ring span { --angle: calc(var(--bead-index) * 22.5deg); position: absolute; width: 17%; aspect-ratio: 1; left: 41.5%; top: 41.5%; border-radius: 50%; transform: rotate(var(--angle)) translateY(-245%) rotate(calc(var(--angle) * -1)); background: radial-gradient(circle at 32% 28%, var(--bead-glow), var(--bead-primary) 32%, var(--bead-secondary) 78%); box-shadow: inset -7px -8px 14px rgba(0,0,0,.38), 0 4px 12px rgba(0,0,0,.4); }
-.product-visual-compact .bead-ring span { transform: rotate(var(--angle)) translateY(-230%) rotate(calc(var(--angle) * -1)); }
-.visual-code { position: absolute; left: 18px; bottom: 16px; font: 10px var(--font-geist-mono), monospace; letter-spacing: .1em; color: var(--muted-dark); }
+.product-photo { object-fit: cover; }
+.product-photo-shade { position: absolute; inset: 0; background: linear-gradient(to top, rgba(7,7,7,.45), transparent 25%); pointer-events: none; }
+.visual-code { position: absolute; left: 18px; bottom: 16px; font: 10px var(--font-geist-mono), monospace; letter-spacing: .1em; color: rgba(244,243,239,.72); }
 
 .manifesto { padding-block: 40px 110px; display: grid; grid-template-columns: .5fr 1.5fr .6fr; gap: 40px; align-items: end; }
 .manifesto-copy { margin: 0; font-size: clamp(28px, 4vw, 58px); line-height: 1.08; letter-spacing: -.04em; }

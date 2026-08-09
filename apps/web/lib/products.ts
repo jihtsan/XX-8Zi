@@ -13,7 +13,7 @@ export type Product = {
   category: string;
   description: string;
   material: string;
-  tone: { primary: string; secondary: string; glow: string };
+  image: string;
   variants: Variant[];
 };
 
@@ -31,72 +31,39 @@ type ApiProduct = {
 export const products: Product[] = [
   {
     id: 1,
-    slug: "amethyst-orbit",
-    code: "CRYSTAL-001",
-    name: "紫晶轨道",
+    slug: "amethyst-star-orbit",
+    code: "CRYSTAL-101",
+    name: "紫晶星轨",
     category: "水晶系列",
-    description: "深浅紫晶交错排列，保留天然冰裂与棉絮纹理，整体气质安静而有秩序。",
-    material: "天然紫水晶 / 弹力线",
-    tone: { primary: "#b99be8", secondary: "#5c3f7c", glow: "#eadcff" },
+    description: "深浅紫晶珠体依次排列，保留天然冰裂与棉絮纹理，以一枚克制的银色隔珠收束。",
+    material: "天然紫水晶 / 925银隔珠 / 弹力线",
+    image: "/asset/picture/amethyst-star-orbit.jpg",
     variants: [
-      { id: 1, name: "8mm / 16cm", price: 268, inStock: true },
-      { id: 2, name: "10mm / 17cm", price: 328, inStock: true },
+      { id: 1, name: "8mm / 16cm", price: 298, inStock: true },
+      { id: 2, name: "10mm / 17cm", price: 368, inStock: true },
     ],
   },
   {
     id: 2,
-    slug: "obsidian-signal",
-    code: "CRYSTAL-004",
-    name: "黑曜信号",
+    slug: "green-phantom-garden",
+    code: "CRYSTAL-102",
+    name: "绿幽灵庭",
     category: "水晶系列",
-    description: "黑曜石珠体在侧光下呈现克制光泽，搭配一颗银色几何隔珠。",
-    material: "天然黑曜石 / 合金隔珠",
-    tone: { primary: "#28292c", secondary: "#08090a", glow: "#858891" },
-    variants: [{ id: 3, name: "10mm / 17cm", price: 198, inStock: true }],
+    description: "清透石英中分布苔绿色绿泥石包裹体，每颗珠子的层次与形态均有自然差异。",
+    material: "天然绿幽灵水晶 / 弹力线",
+    image: "/asset/picture/green-phantom-garden.jpg",
+    variants: [{ id: 3, name: "9mm / 16cm", price: 428, inStock: true }],
   },
   {
     id: 3,
-    slug: "moonstone-phase",
-    code: "CRYSTAL-009",
-    name: "月光相位",
+    slug: "gold-rutile-current",
+    code: "CRYSTAL-103",
+    name: "金发晶流光",
     category: "水晶系列",
-    description: "乳白月光石带有柔和蓝光，珠体通透度与光带因天然差异而不同。",
-    material: "天然月光石 / 弹力线",
-    tone: { primary: "#e5e7dc", secondary: "#96a3b7", glow: "#ffffff" },
-    variants: [{ id: 4, name: "8mm / 16cm", price: 388, inStock: false }],
-  },
-  {
-    id: 4,
-    slug: "sandalwood-cycle",
-    code: "BEADS-003",
-    name: "檀木周期",
-    category: "木质佛珠",
-    description: "暖棕檀木珠串，表面保留细密木纹，适合日常佩戴与盘玩。",
-    material: "檀木 / 棉线",
-    tone: { primary: "#9d6647", secondary: "#3b2118", glow: "#d7a176" },
-    variants: [{ id: 5, name: "8mm / 108颗", price: 168, inStock: true }],
-  },
-  {
-    id: 5,
-    slug: "tiger-eye-coordinate",
-    code: "CRYSTAL-012",
-    name: "虎眼坐标",
-    category: "天然饰品",
-    description: "金棕虎眼石随角度出现平行光带，色泽沉稳，颗粒差异清晰可见。",
-    material: "天然虎眼石 / 弹力线",
-    tone: { primary: "#c38a3d", secondary: "#4a2a0f", glow: "#f0c46f" },
-    variants: [{ id: 6, name: "10mm / 17cm", price: 228, inStock: true }],
-  },
-  {
-    id: 6,
-    slug: "white-crystal-index",
-    code: "CRYSTAL-018",
-    name: "白晶索引",
-    category: "天然饰品",
-    description: "透明白水晶与磨砂银色隔珠组合，结构简洁，适合叠戴。",
-    material: "天然白水晶 / 合金隔珠",
-    tone: { primary: "#f2f1ec", secondary: "#aeb2b4", glow: "#ffffff" },
-    variants: [{ id: 7, name: "8mm / 16cm", price: 188, inStock: true }],
+    description: "通透晶体中可见细密而不规则的金色针状包裹体，光线下呈现自然层次。",
+    material: "天然金发晶 / 弹力线",
+    image: "/asset/picture/gold-rutile-current.jpg",
+    variants: [{ id: 4, name: "10mm / 17cm", price: 628, inStock: true }],
   },
 ];
 
@@ -129,7 +96,7 @@ function mapApiProduct(product: ApiProduct): Product {
     category: product.category,
     description: product.description,
     material: product.material,
-    tone: fallback?.tone ?? { primary: "#9B86C8", secondary: "#30283d", glow: "#e8ddff" },
+    image: fallback?.image ?? "/asset/picture/amethyst-star-orbit.jpg",
     variants: product.variants.map((variant) => ({
       id: variant.id,
       name: variant.name,

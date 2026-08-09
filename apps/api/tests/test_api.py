@@ -19,7 +19,9 @@ def test_health_and_catalog():
 
         catalog = client.get("/api/v1/catalog/products")
         assert catalog.status_code == 200
-        assert len(catalog.json()) == 6
+        products = catalog.json()
+        assert len(products) == 3
+        assert [product["name"] for product in products] == ["紫晶星轨", "绿幽灵庭", "金发晶流光"]
 
 
 def test_demo_customer_can_create_order():
@@ -104,6 +106,7 @@ def test_admin_can_manage_inventory_and_current_wechat_settings():
 
         catalog = client.get("/api/v1/admin/catalog")
         assert catalog.status_code == 200
+        assert [product["status"] for product in catalog.json()] == ["PUBLISHED"] * 3
         variant = catalog.json()[0]["variants"][0]
 
         below_reserved = client.post(

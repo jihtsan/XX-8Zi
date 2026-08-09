@@ -6,7 +6,7 @@ import { fetchProducts } from "@/lib/products";
 
 export const metadata: Metadata = {
   title: "玄序 · 矿物与珠串档案",
-  description: "水晶手串、佛珠与天然饰品的数字档案商城。",
+  description: "天然水晶手串的数字档案商城。",
 };
 
 export default async function Home() {
@@ -22,7 +22,7 @@ export default async function Home() {
             都有自己的秩序
           </h1>
           <p className="hero-summary">
-            水晶、木质与佛珠饰品的当代矿物档案。浏览天然纹理，选择适合你的尺寸，
+            天然水晶手串的当代矿物档案。浏览天然纹理，选择适合你的尺寸，
             最终价格与交付方式由商家通过微信确认。
           </p>
           <div className="hero-actions">
@@ -40,9 +40,9 @@ export default async function Home() {
 
       <section className="index-strip" aria-label="商品分类">
         <div className="shell index-grid">
-          <a href="#catalog"><span>01</span>水晶系列</a>
-          <a href="#catalog"><span>02</span>木质佛珠</a>
-          <a href="#catalog"><span>03</span>天然饰品</a>
+          <a href="#catalog"><span>01</span>紫水晶</a>
+          <a href="#catalog"><span>02</span>绿幽灵</a>
+          <a href="#catalog"><span>03</span>金发晶</a>
           <p className="index-mark">○ ○ ○ ○ ○ ○</p>
         </div>
       </section>
