@@ -33,7 +33,7 @@ export default async function Home() {
           </div>
         </Reveal>
 
-        <Reveal className="hero-orbit" delay={0.1} ariaLabel="六颗天然材质珠子的旋转轨道装饰">
+        <Reveal className="hero-orbit" delay={0.1} ariaLabel="六颗同尺寸行星纹理珠子的旋转轨道装饰">
           <MineralOrbit />
         </Reveal>
       </section>

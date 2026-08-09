@@ -4,12 +4,12 @@ import { useEffect, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 
 const fallbackBeads = [
-  { color: "#9b86c8", x: "50%", y: "7%" },
-  { color: "#8b9d91", x: "87%", y: "29%" },
-  { color: "#b58f98", x: "87%", y: "71%" },
-  { color: "#a47e53", x: "50%", y: "93%" },
-  { color: "#343239", x: "13%", y: "71%" },
-  { color: "#9b9087", x: "13%", y: "29%" },
+  { color: "#4f7791", image: "/planet-textures/earth.jpg", x: "50%", y: "7%" },
+  { color: "#b65d37", image: "/planet-textures/mars.jpg", x: "87%", y: "29%" },
+  { color: "#9dd9d4", image: "/planet-textures/uranus.jpg", x: "87%", y: "71%" },
+  { color: "#284bba", image: "/planet-textures/neptune.jpg", x: "50%", y: "93%" },
+  { color: "#b58d6a", image: "/planet-textures/jupiter.jpg", x: "13%", y: "71%" },
+  { color: "#8f76b3", image: "/planet-textures/amethyst.jpg", x: "13%", y: "29%" },
 ] as const;
 
 type RenderState = "loading" | "ready" | "fallback";
@@ -78,42 +78,49 @@ export function MineralOrbit() {
         );
         orbitGroup.add(outerTrack, innerTrack);
 
-        const beadGeometries = [
-          new THREE.IcosahedronGeometry(0.34, 2),
-          new THREE.SphereGeometry(0.31, 24, 18),
-          new THREE.OctahedronGeometry(0.34, 2),
-          new THREE.SphereGeometry(0.33, 18, 14),
-          new THREE.DodecahedronGeometry(0.32, 1),
-          new THREE.IcosahedronGeometry(0.32, 3),
-        ];
-        const beadColours = [0x9b86c8, 0x81968b, 0xb58f98, 0xa47e53, 0x343239, 0x9b9087];
-        const beadMeshes = beadGeometries.map((geometry, index) => {
+        const textureLoader = new THREE.TextureLoader();
+        const textures = await Promise.all(
+          fallbackBeads.map(({ image }) => textureLoader.loadAsync(image)),
+        );
+        if (cancelled) {
+          textures.forEach((texture) => texture.dispose());
+          renderer.dispose();
+          return;
+        }
+        textures.forEach((texture) => {
+          texture.colorSpace = THREE.SRGBColorSpace;
+          texture.anisotropy = Math.min(4, renderer.capabilities.getMaxAnisotropy());
+        });
+
+        const beadGeometry = new THREE.SphereGeometry(0.42, 32, 24);
+        const beadMeshes = textures.map((texture, index) => {
           const material = new THREE.MeshPhysicalMaterial({
-            clearcoat: index === 4 ? 0.9 : 0.55,
-            clearcoatRoughness: 0.22,
-            color: beadColours[index],
-            metalness: index === 4 ? 0.2 : 0.03,
-            roughness: 0.24 + index * 0.07,
+            clearcoat: 0.28,
+            clearcoatRoughness: 0.34,
+            map: texture,
+            metalness: 0,
+            roughness: 0.48,
           });
-          const bead = new THREE.Mesh(geometry, material);
-          const angle = (index / beadGeometries.length) * Math.PI * 2 + Math.PI / 2;
-          bead.position.set(Math.cos(angle) * 2.55, Math.sin(angle) * 2.55, index % 2 ? 0.12 : -0.08);
+          const bead = new THREE.Mesh(beadGeometry, material);
+          const angle = (index / textures.length) * Math.PI * 2 + Math.PI / 2;
+          bead.position.set(Math.cos(angle) * 2.55, Math.sin(angle) * 2.55, 0);
           bead.rotation.set(index * 0.38, index * 0.52, index * 0.24);
           orbitGroup.add(bead);
           return bead;
         });
 
         const core = new THREE.Mesh(
-          new THREE.OctahedronGeometry(0.72, 1),
+          new THREE.SphereGeometry(0.76, 32, 24),
           new THREE.MeshPhysicalMaterial({
-            clearcoat: 0.75,
-            color: 0x8b73b5,
-            flatShading: true,
-            metalness: 0.06,
-            roughness: 0.18,
+            clearcoat: 0.42,
+            clearcoatRoughness: 0.26,
+            emissive: 0x241630,
+            emissiveIntensity: 0.16,
+            map: textures[5],
+            metalness: 0,
+            roughness: 0.34,
           }),
         );
-        core.scale.y = 1.18;
         orbitGroup.add(core);
 
         let targetTiltX = 0;
@@ -191,6 +198,7 @@ export function MineralOrbit() {
             const materials = Array.isArray(object.material) ? object.material : [object.material];
             materials.forEach((material) => material.dispose());
           });
+          textures.forEach((texture) => texture.dispose());
           renderer.dispose();
         };
 
@@ -217,10 +225,11 @@ export function MineralOrbit() {
         {fallbackBeads.map((bead, index) => (
           <span
             className="mineral-fallback-bead"
-            key={bead.color}
+            key={bead.image}
             style={
               {
                 "--bead-color": bead.color,
+                "--bead-image": `url(${bead.image})`,
                 "--bead-x": bead.x,
                 "--bead-y": bead.y,
                 "--bead-rotation": `${index * 17}deg`,

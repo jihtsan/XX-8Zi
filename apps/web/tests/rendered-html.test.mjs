@@ -22,7 +22,9 @@ test("server-renders the finished storefront", async () => {
   assert.match(html, /<title>玄序 · 矿物与珠串档案<\/title>/i);
   assert.match(html, /每一串/);
   assert.match(html, /brand-mineral-mark\.png/);
-  assert.match(html, /六颗天然材质珠子的旋转轨道装饰/);
+  assert.match(html, /六颗同尺寸行星纹理珠子的旋转轨道装饰/);
+  assert.match(html, /planet-textures\/earth\.jpg/);
+  assert.match(html, /planet-textures\/jupiter\.jpg/);
   assert.match(html, /MINERAL SIGNAL \/ 06/);
   assert.equal(html.match(/mineral-fallback-bead/g)?.length, 6);
   assert.match(html, /紫晶轨道/);

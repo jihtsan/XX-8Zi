@@ -1,7 +1,4 @@
 export { ACESFilmicToneMapping, SRGBColorSpace } from "three/src/constants.js";
-export { DodecahedronGeometry } from "three/src/geometries/DodecahedronGeometry.js";
-export { IcosahedronGeometry } from "three/src/geometries/IcosahedronGeometry.js";
-export { OctahedronGeometry } from "three/src/geometries/OctahedronGeometry.js";
 export { SphereGeometry } from "three/src/geometries/SphereGeometry.js";
 export { TorusGeometry } from "three/src/geometries/TorusGeometry.js";
 export { Group } from "three/src/objects/Group.js";
@@ -12,4 +9,5 @@ export { MeshPhysicalMaterial } from "three/src/materials/MeshPhysicalMaterial.j
 export { PerspectiveCamera } from "three/src/cameras/PerspectiveCamera.js";
 export { PointLight } from "three/src/lights/PointLight.js";
 export { Scene } from "three/src/scenes/Scene.js";
+export { TextureLoader } from "three/src/loaders/TextureLoader.js";
 export { WebGLRenderer } from "three/src/renderers/WebGLRenderer.js";
