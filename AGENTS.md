@@ -18,6 +18,7 @@
 | --- | --- |
 | 前端 | Next.js App Router + React + TypeScript |
 | 样式与组件 | Tailwind CSS + shadcn/ui；优先复用可访问性良好的基础组件 |
+| 动效 | Motion for React；React Bits 仅按需引入经审查的 TypeScript + Tailwind 源码 |
 | 表单 | React Hook Form + Zod |
 | 后端 | Python 3.14 + FastAPI + Pydantic v2 |
 | 数据访问 | SQLAlchemy 2.x async + aiosqlite |
@@ -89,6 +90,16 @@ apps/api/app/
 - 从 OpenAPI 生成 TypeScript 类型或客户端，避免手写重复 DTO。
 - 前端不得自行复制订单状态、库存公式或权限规则；稳定状态代码由 API 返回。
 - 页面展示使用后端返回的参考价、可售状态和当前状态配置。
+
+### 动效与视觉组件
+
+- 颜色、透明度等简单悬停反馈优先使用 CSS；进入退出、布局、滚动和 SVG 动画使用 `motion` 包并从 `motion/react` 导入。
+- 应用根部使用 `MotionConfig reducedMotion="user"`；大型位移、视差和持续动画还要通过 `useReducedMotion` 提供静态或淡入替代。
+- 使用 `LazyMotion` 与 `m` 控制首屏体积；新增动效后检查产物体积、移动端帧率和布局稳定性。
+- React Bits 是源码参考库，不是无条件启用的组件依赖。只引入所需的 TypeScript + Tailwind 版本，移除无关效果并接入本项目 Token。
+- 引入 React Bits 源码前检查其直接依赖、键盘和触控行为、服务端渲染、静态降级与许可证；一期采用 CSS 或 Motion 版本，不引入仅为装饰服务的 GSAP、Three.js、WebGL 或平滑滚动依赖。
+- React Bits 使用 MIT + Commons Clause。复制实质源码时保留版权和许可声明，并更新第三方声明；不得转售、再许可或单独分发这些组件。
+- 动效只增强层级和反馈，不承载商品状态、订单状态或关键说明。详细视觉范围与验收规则见 `docs/design.md`。
 
 ### 界面隔离
 
@@ -177,6 +188,9 @@ apps/api/app/
 ## 官方参考
 
 - Next.js App Router：https://nextjs.org/docs/app
+- Motion for React：https://motion.dev/docs/react
+- React Bits：https://reactbits.dev/showcase
+- React Bits license：https://github.com/DavidHDev/react-bits/blob/main/LICENSE.md
 - FastAPI：https://fastapi.tiangolo.com/
 - SQLAlchemy 2 asyncio：https://docs.sqlalchemy.org/en/20/orm/extensions/asyncio.html
 - SQLite WAL：https://www.sqlite.org/wal.html
