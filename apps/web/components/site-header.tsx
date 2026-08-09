@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 
 export function SiteHeader() {
@@ -5,7 +6,9 @@ export function SiteHeader() {
     <header className="site-header">
       <div className="shell header-inner">
         <Link className="brand" href="/" aria-label="玄序首页">
-          <span className="brand-mark">◇</span>
+          <span className="brand-mark" aria-hidden="true">
+            <Image src="/brand-mineral-mark.png" alt="" width={56} height={56} priority />
+          </span>
           <span>玄序</span>
           <small>XUANXU ARCHIVE</small>
         </Link>

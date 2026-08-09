@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { MineralOrbit } from "@/components/mineral-orbit";
 import { ProductCard } from "@/components/product-card";
 import { Reveal } from "@/components/reveal";
 import { fetchProducts } from "@/lib/products";
@@ -32,11 +33,8 @@ export default async function Home() {
           </div>
         </Reveal>
 
-        <Reveal className="hero-orbit" delay={0.1} ariaLabel="珠串轨道装饰">
-          <div className="orbit orbit-one" />
-          <div className="orbit orbit-two" />
-          <div className="orbit-core">◇</div>
-          <p>MINERAL SIGNAL</p>
+        <Reveal className="hero-orbit" delay={0.1} ariaLabel="六颗天然材质珠子的旋转轨道装饰">
+          <MineralOrbit />
         </Reveal>
       </section>
 
