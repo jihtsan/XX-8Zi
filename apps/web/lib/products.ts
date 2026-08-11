@@ -1,8 +1,18 @@
+import { API_ORIGIN, API_URL, mediaUrl } from "@/lib/api";
+
 export type Variant = {
   id: number;
   name: string;
   price: number;
   inStock: boolean;
+};
+
+export type ProductImage = {
+  id: number;
+  role: "MAIN" | "GALLERY";
+  sortOrder: number;
+  altText: string;
+  url: string;
 };
 
 export type Product = {
@@ -14,6 +24,7 @@ export type Product = {
   description: string;
   material: string;
   image: string;
+  images: ProductImage[];
   variants: Variant[];
 };
 
@@ -25,6 +36,13 @@ type ApiProduct = {
   category: string;
   description: string;
   material: string;
+  images: Array<{
+    id: number;
+    role: "MAIN" | "GALLERY";
+    sort_order: number;
+    alt_text: string;
+    url: string;
+  }>;
   variants: Array<{ id: number; name: string; reference_price: number; in_stock: boolean }>;
 };
 
@@ -37,7 +55,8 @@ export const products: Product[] = [
     category: "水晶系列",
     description: "深浅紫晶珠体依次排列，保留天然冰裂与棉絮纹理，以一枚克制的银色隔珠收束。",
     material: "天然紫水晶 / 925银隔珠 / 弹力线",
-    image: "/asset/picture/amethyst-star-orbit.jpg",
+    image: `${API_ORIGIN}/media/products/1/seed-amethyst-star-orbit.jpg`,
+    images: [{ id: 1, role: "MAIN", sortOrder: 0, altText: "紫晶星轨商品主图", url: `${API_ORIGIN}/media/products/1/seed-amethyst-star-orbit.jpg` }],
     variants: [
       { id: 1, name: "8mm / 16cm", price: 298, inStock: true },
       { id: 2, name: "10mm / 17cm", price: 368, inStock: true },
@@ -51,7 +70,8 @@ export const products: Product[] = [
     category: "水晶系列",
     description: "清透石英中分布苔绿色绿泥石包裹体，每颗珠子的层次与形态均有自然差异。",
     material: "天然绿幽灵水晶 / 弹力线",
-    image: "/asset/picture/green-phantom-garden.jpg",
+    image: `${API_ORIGIN}/media/products/2/seed-green-phantom-garden.jpg`,
+    images: [{ id: 2, role: "MAIN", sortOrder: 0, altText: "绿幽灵庭商品主图", url: `${API_ORIGIN}/media/products/2/seed-green-phantom-garden.jpg` }],
     variants: [{ id: 3, name: "9mm / 16cm", price: 428, inStock: true }],
   },
   {
@@ -62,7 +82,8 @@ export const products: Product[] = [
     category: "水晶系列",
     description: "通透晶体中可见细密而不规则的金色针状包裹体，光线下呈现自然层次。",
     material: "天然金发晶 / 弹力线",
-    image: "/asset/picture/gold-rutile-current.jpg",
+    image: `${API_ORIGIN}/media/products/3/seed-gold-rutile-current.jpg`,
+    images: [{ id: 3, role: "MAIN", sortOrder: 0, altText: "金发晶流光商品主图", url: `${API_ORIGIN}/media/products/3/seed-gold-rutile-current.jpg` }],
     variants: [{ id: 4, name: "10mm / 17cm", price: 628, inStock: true }],
   },
 ];
@@ -88,6 +109,15 @@ export function getProduct(slug: string) {
 
 function mapApiProduct(product: ApiProduct): Product {
   const fallback = products.find((item) => item.slug === product.slug);
+  const images = product.images
+    .map((image) => ({
+      id: image.id,
+      role: image.role,
+      sortOrder: image.sort_order,
+      altText: image.alt_text,
+      url: mediaUrl(image.url) ?? "",
+    }))
+    .sort((left, right) => Number(right.role === "MAIN") - Number(left.role === "MAIN") || left.sortOrder - right.sortOrder);
   return {
     id: product.id,
     slug: product.slug,
@@ -96,7 +126,8 @@ function mapApiProduct(product: ApiProduct): Product {
     category: product.category,
     description: product.description,
     material: product.material,
-    image: fallback?.image ?? "/asset/picture/amethyst-star-orbit.jpg",
+    image: images[0]?.url ?? fallback?.image ?? "",
+    images: images.length ? images : (fallback?.images ?? []),
     variants: product.variants.map((variant) => ({
       id: variant.id,
       name: variant.name,
@@ -107,9 +138,8 @@ function mapApiProduct(product: ApiProduct): Product {
 }
 
 export async function fetchProducts(): Promise<Product[]> {
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000/api/v1";
   try {
-    const response = await fetch(`${apiUrl}/catalog/products`, { cache: "no-store" });
+    const response = await fetch(`${API_URL}/catalog/products`, { cache: "no-store" });
     if (!response.ok) return products;
     return ((await response.json()) as ApiProduct[]).map(mapApiProduct);
   } catch {

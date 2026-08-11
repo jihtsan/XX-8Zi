@@ -1,3 +1,4 @@
+import base64
 import os
 import tempfile
 from pathlib import Path
@@ -6,7 +7,13 @@ from fastapi.testclient import TestClient
 
 temporary_database = tempfile.TemporaryDirectory()
 database_path = Path(temporary_database.name) / "test.db"
+media_path = Path(temporary_database.name) / "uploads"
 os.environ["DATABASE_URL"] = f"sqlite+aiosqlite:///{database_path}"
+os.environ["MEDIA_ROOT"] = str(media_path)
+
+PNG_1X1 = base64.b64decode(
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="
+)
 
 from app.main import app  # noqa: E402
 
@@ -22,6 +29,10 @@ def test_health_and_catalog():
         products = catalog.json()
         assert len(products) == 3
         assert [product["name"] for product in products] == ["紫晶星轨", "绿幽灵庭", "金发晶流光"]
+        assert all(product["images"][0]["role"] == "MAIN" for product in products)
+        image_response = client.get(products[0]["images"][0]["url"])
+        assert image_response.status_code == 200
+        assert image_response.headers["content-type"] == "image/jpeg"
 
 
 def test_demo_customer_can_create_order():
@@ -42,6 +53,7 @@ def test_demo_customer_can_create_order():
         )
         assert created.status_code == 201
         assert created.json()["status"] == "PENDING_CONFIRMATION"
+        assert created.json()["product_image_url"].endswith("seed-amethyst-star-orbit.jpg")
 
         orders = client.get("/api/v1/orders")
         assert orders.status_code == 200
@@ -137,3 +149,99 @@ def test_admin_can_manage_inventory_and_current_wechat_settings():
         logs = client.get("/api/v1/admin/inventory/logs")
         assert logs.status_code == 200
         assert any(log["change_type"] == "MANUAL_ADJUSTMENT" for log in logs.json())
+
+
+def test_admin_can_upload_and_manage_product_images():
+    with TestClient(app) as client:
+        login = client.post(
+            "/api/v1/admin/auth/login",
+            json={"username": "admin", "password": "admin123!"},
+        )
+        assert login.status_code == 200
+
+        uploaded = client.post(
+            "/api/v1/admin/products/1/images",
+            files={"file": ("detail.png", PNG_1X1, "image/png")},
+            data={"role": "GALLERY", "sort_order": "1", "alt_text": "紫晶星轨细节"},
+        )
+        assert uploaded.status_code == 201
+        image = uploaded.json()
+        assert image["role"] == "GALLERY"
+        assert image["url"].startswith("/media/products/1/")
+        stored_files = list((media_path / "products" / "1").glob("*.png"))
+        assert len(stored_files) == 1
+        assert client.get(image["url"]).content == PNG_1X1
+
+        made_main = client.patch(
+            f"/api/v1/admin/products/1/images/{image['id']}",
+            json={"role": "MAIN"},
+        )
+        assert made_main.status_code == 200
+        catalog = client.get("/api/v1/catalog/products").json()
+        assert catalog[0]["images"][0]["id"] == image["id"]
+
+        with TestClient(app) as customer_client:
+            customer_client.post(
+                "/api/v1/auth/login",
+                json={"phone": "13800138000", "password": "demo1234"},
+            )
+            order = customer_client.post(
+                "/api/v1/orders",
+                json={
+                    "variant_id": 1,
+                    "quantity": 1,
+                    "contact_phone": "13800138000",
+                    "wechat_id": None,
+                    "note": None,
+                    "idempotency_key": "image-snapshot-0003",
+                },
+            )
+            assert order.status_code == 201
+            assert order.json()["product_image_url"] == image["url"]
+
+        invalid = client.post(
+            "/api/v1/admin/products/1/images",
+            files={"file": ("fake.png", b"not-an-image", "image/png")},
+            data={"role": "GALLERY"},
+        )
+        assert invalid.status_code == 415
+
+        images = client.get("/api/v1/admin/catalog").json()[0]["images"]
+        seed_image = next(item for item in images if item["id"] != image["id"])
+        assert (
+            client.patch(
+                f"/api/v1/admin/products/1/images/{seed_image['id']}",
+                json={"role": "MAIN"},
+            ).status_code
+            == 200
+        )
+        assert client.delete(f"/api/v1/admin/products/1/images/{image['id']}").status_code == 204
+        assert stored_files[0].exists()
+
+        with TestClient(app) as customer_client:
+            customer_client.post(
+                "/api/v1/auth/login",
+                json={"phone": "13800138000", "password": "demo1234"},
+            )
+            orders = customer_client.get("/api/v1/orders").json()
+            snapshotted = next(item for item in orders if item["id"] == order.json()["id"])
+            assert snapshotted["product_image_url"] == image["url"]
+            assert customer_client.get(snapshotted["product_image_url"]).content == PNG_1X1
+
+
+def test_published_product_cannot_lose_its_main_image():
+    with TestClient(app) as client:
+        client.post(
+            "/api/v1/admin/auth/login",
+            json={"username": "admin", "password": "admin123!"},
+        )
+        product = client.get("/api/v1/admin/catalog").json()[0]
+        main_image = next(image for image in product["images"] if image["role"] == "MAIN")
+        blocked = client.delete(f"/api/v1/admin/products/1/images/{main_image['id']}")
+        assert blocked.status_code == 409
+
+        assert client.patch("/api/v1/admin/products/1", json={"status": "DRAFT"}).status_code == 200
+        assert client.delete(f"/api/v1/admin/products/1/images/{main_image['id']}").status_code == 204
+        publish = client.patch("/api/v1/admin/products/1", json={"status": "PUBLISHED"})
+        assert publish.status_code == 409
+        assert publish.json()["detail"] == "商品至少需要一张主图才能上架"

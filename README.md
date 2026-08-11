@@ -44,7 +44,7 @@ start.sh   # macOS / Linux 启动脚本
 start.bat  # Windows 启动脚本
 ```
 
-前端使用 Motion for React 实现克制的进入、轨道与交互动画，并尊重 reduced-motion。后端首次启动会创建 SQLite 数据库并写入示例商品。
+前端使用 Motion for React 实现克制的进入、轨道与交互动画，并尊重 reduced-motion。后端首次启动会执行 Alembic migration、创建 SQLite 数据库并写入示例商品。示例图片保留在项目中，启动时复制到本地媒体目录。
 
 ## 当前一期实现
 
@@ -52,13 +52,24 @@ start.bat  # Windows 启动脚本
 - 商品详情、规格选择和参考价展示。
 - 客户注册、登录和独立管理员登录。
 - 登录拦截、订单确认、库存预留与我的订单。
-- 后台商品上下架、规格参考价和库存总量维护。
+- 后台商品上下架、主图和轮播图上传、图片排序、规格参考价和库存总量维护。
 - 管理员订单确认、完成、取消与库存审计。
 - 客户账户启停和商家微信联系方式配置。
 - SQLite WAL、外键和 busy timeout 配置。
 - API 与基础端到端数据流程测试。
 
-新建商品与分类、商品图片上传、短信发送与找回密码、24 小时 Celery 超时任务、状态显示样式配置和生产部署配置仍属于后续实现范围。二维码一期可先在后台填写已有图片 URL。
+运行时上传的图片保存在 `apps/api/data/uploads/products/`，SQLite 只保存相对路径；该目录不会提交到 Git。部署时必须为 `apps/api/data` 挂载持久卷，并将 SQLite 数据库和 `uploads` 目录作为一个整体备份与恢复。
+
+新建商品与分类、短信发送与找回密码、24 小时 Celery 超时任务、状态显示样式配置和生产部署配置仍属于后续实现范围。二维码一期可先在后台填写已有图片 URL。
+
+数据库升级命令：
+
+```bash
+cd apps/api
+../../.venv/bin/python -m app.shared.migrate
+```
+
+migration 同时支持空数据库初始化和从一期基础结构升级；部署前仍需备份 SQLite 数据库和商品图片目录。
 
 ## 文档
 

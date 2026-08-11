@@ -9,6 +9,14 @@ class VariantOut(BaseModel):
     in_stock: bool
 
 
+class ProductImageOut(BaseModel):
+    id: int
+    role: str
+    sort_order: int
+    alt_text: str
+    url: str
+
+
 class ProductOut(BaseModel):
     id: int
     code: str
@@ -20,4 +28,5 @@ class ProductOut(BaseModel):
     price_min: float
     price_max: float
     in_stock: bool
+    images: list[ProductImageOut]
     variants: list[VariantOut]

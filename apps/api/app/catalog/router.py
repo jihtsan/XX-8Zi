@@ -3,9 +3,10 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.shared.database import get_db
+from app.shared.storage import media_url
 
-from .models import Category, Product, Variant
-from .schemas import ProductOut, VariantOut
+from .models import Category, Product, ProductImage, Variant
+from .schemas import ProductImageOut, ProductOut, VariantOut
 
 router = APIRouter(prefix="/catalog", tags=["catalog"])
 
@@ -19,6 +20,15 @@ async def build_product(product: Product, category: Category, db: AsyncSession) 
         ).all()
     )
     prices = [variant.price_cents for variant in variants] or [0]
+    images = list(
+        (
+            await db.scalars(
+                select(ProductImage)
+                .where(ProductImage.product_id == product.id)
+                .order_by(ProductImage.role.desc(), ProductImage.sort_order, ProductImage.id)
+            )
+        ).all()
+    )
     return ProductOut(
         id=product.id,
         code=product.code,
@@ -30,6 +40,16 @@ async def build_product(product: Product, category: Category, db: AsyncSession) 
         price_min=min(prices) / 100,
         price_max=max(prices) / 100,
         in_stock=any(variant.available_stock > 0 for variant in variants),
+        images=[
+            ProductImageOut(
+                id=image.id,
+                role=image.role,
+                sort_order=image.sort_order,
+                alt_text=image.alt_text,
+                url=media_url(image.storage_key) or "",
+            )
+            for image in images
+        ],
         variants=[
             VariantOut(
                 id=variant.id,

@@ -1,16 +1,18 @@
 import secrets
 from datetime import datetime
+from typing import cast
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select, update
+from sqlalchemy.engine import CursorResult
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.catalog.models import InventoryLog, Product, Variant
+from app.catalog.models import InventoryLog, Product, ProductImage, Variant
 from app.identity.dependencies import current_customer
 from app.identity.models import Customer
 from app.shared.database import get_db
 
-from .models import Order, OrderStatusLog
+from .models import Order, OrderImageSnapshot, OrderStatusLog
 from .schemas import OrderCreate, OrderOut
 from .service import order_payload
 
@@ -43,6 +45,14 @@ async def create_order(
     if not row:
         raise HTTPException(status_code=404, detail="商品规格不存在或不可购买")
     variant, product = row
+    main_image = await db.scalar(
+        select(ProductImage).where(
+            ProductImage.product_id == product.id,
+            ProductImage.role == "MAIN",
+        )
+    )
+    if not main_image:
+        raise HTTPException(status_code=409, detail="商品缺少主图，暂时无法创建订单")
 
     before_reserved = variant.reserved_stock
     reserved = await db.execute(
@@ -54,7 +64,7 @@ async def create_order(
         )
         .values(reserved_stock=Variant.reserved_stock + payload.quantity)
     )
-    if reserved.rowcount != 1:
+    if cast(CursorResult, reserved).rowcount != 1:
         await db.rollback()
         raise HTTPException(status_code=409, detail="可售库存不足")
 
@@ -74,6 +84,12 @@ async def create_order(
     )
     db.add(order)
     await db.flush()
+    snapshot = OrderImageSnapshot(
+        order_id=order.id,
+        storage_key=main_image.storage_key,
+        alt_text=main_image.alt_text,
+    )
+    db.add(snapshot)
     db.add(OrderStatusLog(order_id=order.id, from_status=None, to_status=order.status, source="customer"))
     db.add(
         InventoryLog(
@@ -90,19 +106,20 @@ async def create_order(
     )
     await db.commit()
     await db.refresh(order)
-    return order_payload(order)
+    return order_payload(order, snapshot)
 
 
 @router.get("", response_model=list[OrderOut])
 async def list_orders(customer: Customer = Depends(current_customer), db: AsyncSession = Depends(get_db)):
-    orders = list(
-        (
-            await db.scalars(
-                select(Order).where(Order.customer_id == customer.id).order_by(Order.created_at.desc())
-            )
-        ).all()
-    )
-    return [order_payload(order) for order in orders]
+    rows = (
+        await db.execute(
+            select(Order, OrderImageSnapshot)
+            .outerjoin(OrderImageSnapshot, OrderImageSnapshot.order_id == Order.id)
+            .where(Order.customer_id == customer.id)
+            .order_by(Order.created_at.desc())
+        )
+    ).all()
+    return [order_payload(order, snapshot) for order, snapshot in rows]
 
 
 @router.post("/{order_id}/cancel", response_model=OrderOut)
@@ -127,7 +144,7 @@ async def cancel_order(
         .where(Order.id == order.id, Order.status == "PENDING_CONFIRMATION")
         .values(status="CANCELED")
     )
-    if changed.rowcount != 1:
+    if cast(CursorResult, changed).rowcount != 1:
         await db.rollback()
         raise HTTPException(status_code=409, detail="订单状态已经变化")
     await db.execute(
@@ -155,4 +172,5 @@ async def cancel_order(
     )
     await db.commit()
     await db.refresh(order)
-    return order_payload(order)
+    snapshot = await db.scalar(select(OrderImageSnapshot).where(OrderImageSnapshot.order_id == order.id))
+    return order_payload(order, snapshot)

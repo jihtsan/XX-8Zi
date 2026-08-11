@@ -17,6 +17,7 @@ class OrderOut(BaseModel):
     number: str
     product_name: str
     product_code: str
+    product_image_url: str | None
     variant_name: str
     quantity: int
     reference_unit: float

@@ -2,6 +2,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 from app.admin.router import router as admin_router
 
@@ -17,6 +18,7 @@ from app.ordering.router import router as ordering_router
 from app.seed import seed_data
 from app.shared.config import get_settings
 from app.shared.database import create_schema
+from app.shared.storage import media_root
 
 
 @asynccontextmanager
@@ -46,6 +48,7 @@ app.include_router(identity_router, prefix="/api/v1")
 app.include_router(ordering_router, prefix="/api/v1")
 app.include_router(merchant_settings_router, prefix="/api/v1")
 app.include_router(admin_router, prefix="/api/v1")
+app.mount("/media", StaticFiles(directory=media_root()), name="media")
 
 
 @app.get("/health")

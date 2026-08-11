@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { FormEvent, useCallback, useEffect, useState } from "react";
-import { apiRequest } from "@/lib/api";
+import { apiRequest, mediaUrl } from "@/lib/api";
 
 type Order = {
   id: number;
@@ -33,12 +34,21 @@ type Variant = {
   active: boolean;
 };
 
+type ProductImage = {
+  id: number;
+  role: "MAIN" | "GALLERY";
+  sort_order: number;
+  alt_text: string;
+  url: string;
+};
+
 type CatalogProduct = {
   id: number;
   code: string;
   name: string;
   category: string;
   status: string;
+  images: ProductImage[];
   variants: Variant[];
 };
 
@@ -99,6 +109,103 @@ function InventoryEditor({ variant, onSaved }: { variant: Variant; onSaved: () =
   );
 }
 
+function ProductImageManager({
+  product,
+  onSaved,
+  onNotice,
+}: {
+  product: CatalogProduct;
+  onSaved: () => Promise<void>;
+  onNotice: (message: string) => void;
+}) {
+  const [files, setFiles] = useState<File[]>([]);
+  const [busy, setBusy] = useState(false);
+
+  async function uploadImages(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!files.length) return;
+    setBusy(true);
+    try {
+      for (const [index, file] of files.entries()) {
+        const body = new FormData();
+        body.set("file", file);
+        body.set("role", product.images.length === 0 && index === 0 ? "MAIN" : "GALLERY");
+        body.set("sort_order", String(product.images.length + index));
+        body.set("alt_text", `${product.name}商品图`);
+        await apiRequest(`/admin/products/${product.id}/images`, { method: "POST", body });
+      }
+      setFiles([]);
+      onNotice(`已上传 ${files.length} 张商品图片`);
+      await onSaved();
+    } catch (reason) {
+      onNotice(reason instanceof Error ? reason.message : "图片上传失败");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function updateImage(image: ProductImage, body: Partial<ProductImage>) {
+    setBusy(true);
+    try {
+      await apiRequest(`/admin/products/${product.id}/images/${image.id}`, {
+        method: "PATCH",
+        body: JSON.stringify(body),
+      });
+      onNotice("图片设置已保存");
+      await onSaved();
+    } catch (reason) {
+      onNotice(reason instanceof Error ? reason.message : "图片设置保存失败");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function deleteImage(image: ProductImage) {
+    setBusy(true);
+    try {
+      await apiRequest(`/admin/products/${product.id}/images/${image.id}`, { method: "DELETE" });
+      onNotice("图片已删除");
+      await onSaved();
+    } catch (reason) {
+      onNotice(reason instanceof Error ? reason.message : "图片删除失败");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const orderedImages = [...product.images].sort(
+    (left, right) => Number(right.role === "MAIN") - Number(left.role === "MAIN") || left.sort_order - right.sort_order,
+  );
+
+  return (
+    <section className="admin-image-manager" aria-label={`${product.name}商品图片`}>
+      <div className="admin-image-heading">
+        <div><strong>商品图片</strong><small>主图 1 张 · 轮播图最多 11 张</small></div>
+        <form onSubmit={uploadImages}>
+          <label className="file-picker">选择图片<input type="file" accept="image/jpeg,image/png,image/webp" multiple onChange={(event) => setFiles(Array.from(event.target.files ?? []))} /></label>
+          <button className="button button-dark button-compact" disabled={busy || files.length === 0}>{busy ? "处理中…" : `上传${files.length ? ` ${files.length} 张` : ""}`}</button>
+        </form>
+      </div>
+      {orderedImages.length === 0 ? <p className="admin-image-empty">暂无图片。上传的第一张图片会自动设为主图，上架前必须有主图。</p> : (
+        <div className="admin-image-list">
+          {orderedImages.map((image) => (
+            <article key={image.id} className="admin-image-item">
+              <div className="admin-image-preview"><Image src={image.url} alt={image.alt_text} fill unoptimized sizes="96px" /></div>
+              <div><strong>{image.role === "MAIN" ? "主图" : "轮播图"}</strong><small>排序 {image.sort_order}</small></div>
+              <div className="admin-image-actions">
+                {image.role !== "MAIN" && <button disabled={busy} onClick={() => void updateImage(image, { role: "MAIN" })}>设为主图</button>}
+                <button disabled={busy || image.sort_order === 0} aria-label="向前排序" onClick={() => void updateImage(image, { sort_order: Math.max(0, image.sort_order - 1) })}>←</button>
+                <button disabled={busy} aria-label="向后排序" onClick={() => void updateImage(image, { sort_order: image.sort_order + 1 })}>→</button>
+                <button className="danger" disabled={busy} onClick={() => void deleteImage(image)}>删除</button>
+              </div>
+            </article>
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
 export function AdminDashboard() {
   const [data, setData] = useState<Dashboard | null>(null);
   const [catalog, setCatalog] = useState<CatalogProduct[]>([]);
@@ -116,7 +223,10 @@ export function AdminDashboard() {
         apiRequest<MerchantSettings>("/admin/merchant-settings"),
       ]);
       setData(dashboard);
-      setCatalog(catalogPayload);
+      setCatalog(catalogPayload.map((product) => ({
+        ...product,
+        images: product.images.map((image) => ({ ...image, url: mediaUrl(image.url) ?? "" })),
+      })));
       setCustomers(customerPayload);
       setSettings(settingsPayload);
       setError("");
@@ -186,6 +296,7 @@ export function AdminDashboard() {
                 {catalog.map((product) => (
                   <article key={product.id} className="admin-product-card">
                     <header><div><span className="mono-note">{product.code} / {product.category}</span><h3>{product.name}</h3></div><label>商品状态<select value={product.status} onChange={(event) => void mutate(`/admin/products/${product.id}`, { status: event.target.value })}><option value="DRAFT">草稿</option><option value="PUBLISHED">上架</option><option value="UNPUBLISHED">下架</option></select></label></header>
+                    <ProductImageManager product={product} onSaved={refresh} onNotice={setNotice} />
                     {product.variants.map((variant) => <InventoryEditor key={variant.id} variant={variant} onSaved={refresh} />)}
                   </article>
                 ))}

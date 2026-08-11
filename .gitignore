@@ -8,5 +8,8 @@ __pycache__/
 apps/api/data/*.db
 apps/api/data/*.db-shm
 apps/api/data/*.db-wal
+apps/api/data/uploads/
+apps/api/data/backups/
 apps/api/.env
 apps/web/.env.local
+apps/web/.vite/

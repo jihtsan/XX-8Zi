@@ -32,9 +32,9 @@ test("server-renders the finished storefront", async () => {
   assert.match(html, /紫晶星轨/);
   assert.match(html, /绿幽灵庭/);
   assert.match(html, /金发晶流光/);
-  assert.match(html, /asset\/picture\/amethyst-star-orbit\.jpg/);
-  assert.match(html, /asset\/picture\/green-phantom-garden\.jpg/);
-  assert.match(html, /asset\/picture\/gold-rutile-current\.jpg/);
+  assert.match(html, /media\/products\/1\/seed-amethyst-star-orbit\.jpg/);
+  assert.match(html, /media\/products\/2\/seed-green-phantom-garden\.jpg/);
+  assert.match(html, /media\/products\/3\/seed-gold-rutile-current\.jpg/);
   assert.match(html, /catalog-grid-background/);
   assert.match(html, /MINERAL FIELD \/ 03/);
   assert.match(html, /立即购买|浏览档案/);
