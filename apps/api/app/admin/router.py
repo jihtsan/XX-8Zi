@@ -1,29 +1,44 @@
-from fastapi import APIRouter, Depends, HTTPException, Response
+from typing import cast
+
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Response, UploadFile
 from sqlalchemy import func, select, update
+from sqlalchemy.engine import CursorResult
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.catalog.models import Category, InventoryLog, Product, Variant
+from app.catalog.models import Category, InventoryLog, Product, ProductImage, Variant
 from app.identity.dependencies import current_admin
 from app.identity.models import Admin, Customer, SessionRecord
 from app.identity.router import set_session_cookie
 from app.identity.schemas import AdminLogin
 from app.merchant_settings.models import MerchantSettings
-from app.ordering.models import Order, OrderStatusLog
+from app.ordering.models import Order, OrderImageSnapshot, OrderStatusLog
 from app.ordering.schemas import OrderStatusUpdate
 from app.ordering.service import STATUS_LABELS
 from app.shared.database import get_db
 from app.shared.security import new_session_token, session_expiry, verify_password
+from app.shared.storage import media_url, remove_product_image, save_product_image
 from app.shared.time import utc_now
 
 from .schemas import (
     CustomerStatusUpdate,
     InventoryUpdate,
     MerchantSettingsUpdate,
+    ProductImageUpdate,
     ProductUpdate,
     VariantUpdate,
 )
 
 router = APIRouter(prefix="/admin", tags=["admin"])
+
+
+def image_payload(image: ProductImage) -> dict:
+    return {
+        "id": image.id,
+        "role": image.role,
+        "sort_order": image.sort_order,
+        "alt_text": image.alt_text,
+        "url": media_url(image.storage_key),
+    }
 
 
 @router.post("/auth/login")
@@ -95,6 +110,15 @@ async def admin_catalog(_admin: Admin = Depends(current_admin), db: AsyncSession
                 await db.scalars(select(Variant).where(Variant.product_id == product.id).order_by(Variant.id))
             ).all()
         )
+        images = list(
+            (
+                await db.scalars(
+                    select(ProductImage)
+                    .where(ProductImage.product_id == product.id)
+                    .order_by(ProductImage.role.desc(), ProductImage.sort_order, ProductImage.id)
+                )
+            ).all()
+        )
         result.append(
             {
                 "id": product.id,
@@ -103,6 +127,7 @@ async def admin_catalog(_admin: Admin = Depends(current_admin), db: AsyncSession
                 "category": category.name,
                 "status": product.status,
                 "sort_order": product.sort_order,
+                "images": [image_payload(image) for image in images],
                 "variants": [
                     {
                         "id": variant.id,
@@ -134,10 +159,139 @@ async def update_product(
     values = payload.model_dump(exclude_none=True)
     if "status" in values and values["status"] not in {"DRAFT", "PUBLISHED", "UNPUBLISHED"}:
         raise HTTPException(status_code=422, detail="商品状态无效")
+    if values.get("status") == "PUBLISHED":
+        main_image = await db.scalar(
+            select(ProductImage.id).where(
+                ProductImage.product_id == product.id,
+                ProductImage.role == "MAIN",
+            )
+        )
+        active_variant = await db.scalar(
+            select(Variant.id).where(Variant.product_id == product.id, Variant.active.is_(True))
+        )
+        if not main_image:
+            raise HTTPException(status_code=409, detail="商品至少需要一张主图才能上架")
+        if not active_variant:
+            raise HTTPException(status_code=409, detail="商品至少需要一个启用的可售规格才能上架")
     for key, value in values.items():
         setattr(product, key, value)
     await db.commit()
     return {"ok": True, "id": product.id, "status": product.status}
+
+
+@router.post("/products/{product_id}/images", status_code=201)
+async def upload_product_image(
+    product_id: int,
+    file: UploadFile = File(...),
+    role: str = Form(default="GALLERY"),
+    sort_order: int = Form(default=0, ge=0),
+    alt_text: str = Form(default="", max_length=240),
+    _admin: Admin = Depends(current_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    product = await db.get(Product, product_id)
+    if not product:
+        raise HTTPException(status_code=404, detail="商品不存在")
+    image_count = await db.scalar(
+        select(func.count()).select_from(ProductImage).where(ProductImage.product_id == product.id)
+    )
+    if (image_count or 0) >= 12:
+        raise HTTPException(status_code=409, detail="每个商品最多上传 12 张图片")
+
+    normalized_role = role.upper()
+    if normalized_role not in {"MAIN", "GALLERY"}:
+        raise HTTPException(status_code=422, detail="图片角色无效")
+    if not image_count:
+        normalized_role = "MAIN"
+
+    storage_key = await save_product_image(product.id, file)
+    try:
+        if normalized_role == "MAIN":
+            await db.execute(
+                update(ProductImage)
+                .where(ProductImage.product_id == product.id, ProductImage.role == "MAIN")
+                .values(role="GALLERY")
+            )
+        image = ProductImage(
+            product_id=product.id,
+            storage_key=storage_key,
+            role=normalized_role,
+            sort_order=sort_order,
+            alt_text=alt_text.strip() or f"{product.name}商品图",
+        )
+        db.add(image)
+        await db.commit()
+        await db.refresh(image)
+    except Exception:
+        await db.rollback()
+        remove_product_image(storage_key)
+        raise
+    return image_payload(image)
+
+
+@router.patch("/products/{product_id}/images/{image_id}")
+async def update_product_image(
+    product_id: int,
+    image_id: int,
+    payload: ProductImageUpdate,
+    _admin: Admin = Depends(current_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    image = await db.scalar(
+        select(ProductImage).where(ProductImage.id == image_id, ProductImage.product_id == product_id)
+    )
+    if not image:
+        raise HTTPException(status_code=404, detail="商品图片不存在")
+    values = payload.model_dump(exclude_none=True)
+    if "role" in values:
+        values["role"] = values["role"].upper()
+        if values["role"] not in {"MAIN", "GALLERY"}:
+            raise HTTPException(status_code=422, detail="图片角色无效")
+        if values["role"] == "MAIN":
+            await db.execute(
+                update(ProductImage)
+                .where(
+                    ProductImage.product_id == product_id,
+                    ProductImage.id != image.id,
+                    ProductImage.role == "MAIN",
+                )
+                .values(role="GALLERY")
+            )
+        elif image.role == "MAIN":
+            product = await db.get(Product, product_id)
+            if product and product.status == "PUBLISHED":
+                raise HTTPException(status_code=409, detail="请先设置另一张主图或下架商品")
+    for key, value in values.items():
+        setattr(image, key, value)
+    await db.commit()
+    await db.refresh(image)
+    return image_payload(image)
+
+
+@router.delete("/products/{product_id}/images/{image_id}", status_code=204)
+async def delete_product_image(
+    product_id: int,
+    image_id: int,
+    _admin: Admin = Depends(current_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    image = await db.scalar(
+        select(ProductImage).where(ProductImage.id == image_id, ProductImage.product_id == product_id)
+    )
+    if not image:
+        raise HTTPException(status_code=404, detail="商品图片不存在")
+    product = await db.get(Product, product_id)
+    if image.role == "MAIN" and product and product.status == "PUBLISHED":
+        raise HTTPException(status_code=409, detail="请先设置另一张主图或下架商品")
+    snapshot_exists = await db.scalar(
+        select(OrderImageSnapshot.id).where(OrderImageSnapshot.storage_key == image.storage_key)
+    )
+    storage_key = image.storage_key
+    await db.delete(image)
+    await db.commit()
+    if not snapshot_exists:
+        remove_product_image(storage_key)
+    return Response(status_code=204)
 
 
 @router.patch("/variants/{variant_id}")
@@ -307,7 +461,7 @@ async def update_order_status(
             finished_at=utc_now() if payload.status in {"COMPLETED", "CANCELED"} else None,
         )
     )
-    if changed.rowcount != 1:
+    if cast(CursorResult, changed).rowcount != 1:
         await db.rollback()
         raise HTTPException(status_code=409, detail="订单状态已经变化")
 
@@ -334,7 +488,7 @@ async def update_order_status(
     else:
         stock_changed = None
         change_type = None
-    if stock_changed is not None and stock_changed.rowcount != 1:
+    if stock_changed is not None and cast(CursorResult, stock_changed).rowcount != 1:
         await db.rollback()
         raise HTTPException(status_code=409, detail="库存状态已经变化")
     db.add(

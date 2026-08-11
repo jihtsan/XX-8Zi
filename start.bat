@@ -23,6 +23,8 @@ if not exist "%VENV_DIR%\Scripts\python.exe" (
 
 "%VENV_DIR%\Scripts\python.exe" -m pip install --disable-pip-version-check -e "%API_DIR%"
 if errorlevel 1 exit /b 1
+"%VENV_DIR%\Scripts\python.exe" -m app.shared.migrate
+if errorlevel 1 exit /b 1
 
 echo API:  http://127.0.0.1:8000
 echo Web:  http://127.0.0.1:3000

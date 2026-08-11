@@ -40,3 +40,13 @@ class OrderStatusLog(Base):
     to_status: Mapped[str] = mapped_column(String(32))
     source: Mapped[str] = mapped_column(String(32))
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
+
+
+class OrderImageSnapshot(Base):
+    __tablename__ = "order_image_snapshots"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    order_id: Mapped[int] = mapped_column(ForeignKey("orders.id"), unique=True, index=True)
+    storage_key: Mapped[str] = mapped_column(String(500))
+    alt_text: Mapped[str] = mapped_column(String(240))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)

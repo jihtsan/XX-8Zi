@@ -15,6 +15,12 @@ class VariantUpdate(BaseModel):
     active: bool | None = None
 
 
+class ProductImageUpdate(BaseModel):
+    role: str | None = None
+    sort_order: int | None = Field(default=None, ge=0)
+    alt_text: str | None = Field(default=None, min_length=1, max_length=240)
+
+
 class InventoryUpdate(BaseModel):
     total_stock: int = Field(ge=0)
     reason: str = Field(min_length=2, max_length=500)

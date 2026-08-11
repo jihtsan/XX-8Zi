@@ -22,6 +22,7 @@ if [[ ! -x "${VENV_DIR}/bin/python" ]]; then
 fi
 
 "${VENV_DIR}/bin/python" -m pip install --disable-pip-version-check -e "${API_DIR}"
+"${VENV_DIR}/bin/python" -m app.shared.migrate
 
 echo "API:  http://127.0.0.1:8000"
 echo "Web:  http://127.0.0.1:3000"

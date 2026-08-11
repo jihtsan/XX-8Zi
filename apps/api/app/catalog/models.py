@@ -33,6 +33,18 @@ class Product(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now, onupdate=utc_now)
 
 
+class ProductImage(Base):
+    __tablename__ = "product_images"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    product_id: Mapped[int] = mapped_column(ForeignKey("products.id"), index=True)
+    storage_key: Mapped[str] = mapped_column(String(500), unique=True)
+    role: Mapped[str] = mapped_column(String(16), default="GALLERY", index=True)
+    sort_order: Mapped[int] = mapped_column(Integer, default=0)
+    alt_text: Mapped[str] = mapped_column(String(240))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
+
+
 class Variant(Base):
     __tablename__ = "variants"
 
