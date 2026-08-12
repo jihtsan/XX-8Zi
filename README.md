@@ -20,9 +20,9 @@ start.bat
 
 启动后访问：
 
-- 商城：http://127.0.0.1:3000
-- API 文档：http://127.0.0.1:8000/docs
-- 健康检查：http://127.0.0.1:8000/health
+- 商城：http://localhost:3000
+- API 文档：http://localhost:8000/docs
+- 健康检查：http://localhost:8000/health
 
 ## 开发体验账号
 
