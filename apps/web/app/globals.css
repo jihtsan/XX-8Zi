@@ -86,6 +86,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .site-header nav a, .header-login { transition: color 160ms ease; }
 .site-header nav a:hover, .header-login:hover { color: var(--accent); }
 .header-login { justify-self: end; font-family: var(--font-geist-mono), monospace; font-size: 12px; letter-spacing: .08em; }
+.header-login-loading { color: var(--muted-dark); }
 
 .hero {
   min-height: 760px;
