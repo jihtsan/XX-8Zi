@@ -13,7 +13,7 @@ from app.identity.models import Customer
 from app.shared.database import get_db
 
 from .models import Order, OrderImageSnapshot, OrderStatusLog
-from .notifications import NewOrderNotification, notify_new_order
+from .notifications import OrderNotification, notify_customer_canceled_order, notify_new_order
 from .schemas import OrderCreate, OrderOut
 from .service import order_payload
 
@@ -110,7 +110,7 @@ async def create_order(
     await db.refresh(order)
     background_tasks.add_task(
         notify_new_order,
-        NewOrderNotification(
+        OrderNotification(
             number=order.number,
             product_name=order.product_name,
             variant_name=order.variant_name,
@@ -138,6 +138,7 @@ async def list_orders(customer: Customer = Depends(current_customer), db: AsyncS
 @router.post("/{order_id}/cancel", response_model=OrderOut)
 async def cancel_order(
     order_id: int,
+    background_tasks: BackgroundTasks,
     customer: Customer = Depends(current_customer),
     db: AsyncSession = Depends(get_db),
 ):
@@ -186,4 +187,15 @@ async def cancel_order(
     await db.commit()
     await db.refresh(order)
     snapshot = await db.scalar(select(OrderImageSnapshot).where(OrderImageSnapshot.order_id == order.id))
+    background_tasks.add_task(
+        notify_customer_canceled_order,
+        OrderNotification(
+            number=order.number,
+            product_name=order.product_name,
+            variant_name=order.variant_name,
+            quantity=order.quantity,
+            reference_total_cents=order.reference_unit_cents * order.quantity,
+            contact_phone=order.contact_phone,
+        ),
+    )
     return order_payload(order, snapshot)

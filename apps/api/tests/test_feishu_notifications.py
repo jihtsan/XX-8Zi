@@ -4,51 +4,73 @@ import json
 import httpx
 
 from app.ordering.notifications import (
-    NewOrderNotification,
-    feishu_text_payload,
+    OrderNotification,
+    customer_canceled_order_card,
+    feishu_card_payload,
     generate_feishu_signature,
-    new_order_message,
-    send_feishu_text,
+    new_order_card,
+    send_feishu_card,
 )
 from app.shared.config import get_settings
 
 
-def test_feishu_signature_and_payload_match_expected_format():
+def order_notification() -> OrderNotification:
+    return OrderNotification(
+        number="XX-20260816-ABC123",
+        product_name="紫晶星轨",
+        variant_name="紫水晶 / 8mm / 16cm",
+        quantity=2,
+        reference_total_cents=39800,
+        contact_phone="13800138000",
+    )
+
+
+def test_feishu_signature_and_card_payload_match_expected_format():
     timestamp = "1599360473"
     secret = "test-secret"
+    card = new_order_card(order_notification())
 
     assert generate_feishu_signature(timestamp, secret) == "wSds2BzzFIIGf/WrhUO+NI1q/9j+FRJd3JNHKAq0NZY="
-    assert feishu_text_payload("测试消息", secret, timestamp) == {
+    assert feishu_card_payload(card, secret, timestamp) == {
         "timestamp": timestamp,
         "sign": "wSds2BzzFIIGf/WrhUO+NI1q/9j+FRJd3JNHKAq0NZY=",
-        "msg_type": "text",
-        "content": {"text": "测试消息"},
+        "msg_type": "interactive",
+        "card": card,
     }
 
 
-def test_new_order_message_masks_customer_phone():
-    message = new_order_message(
-        NewOrderNotification(
-            number="XX-20260816-ABC123",
-            product_name="紫晶星轨",
-            variant_name="紫水晶 / 8mm / 16cm",
-            quantity=2,
-            reference_total_cents=39800,
-            contact_phone="13800138000",
-        )
-    )
+def test_new_order_card_uses_visual_hierarchy_and_masks_customer_phone():
+    card = new_order_card(order_notification())
 
-    assert "玄序订单通知" in message
-    assert "参考金额：¥398.00" in message
-    assert "138****8000" in message
-    assert "13800138000" not in message
+    assert card["header"] == {
+        "template": "purple",
+        "title": {"tag": "plain_text", "content": "玄序订单通知 · 新订单待确认"},
+    }
+    serialized = json.dumps(card, ensure_ascii=False)
+    assert "参考金额" in serialized
+    assert "¥398.00" in serialized
+    assert "138••••8000" in serialized
+    assert "13800138000" not in serialized
 
 
-def test_send_feishu_text_posts_signed_message(monkeypatch):
+def test_customer_canceled_card_has_distinct_status_and_guidance():
+    card = customer_canceled_order_card(order_notification())
+
+    assert card["header"] == {
+        "template": "grey",
+        "title": {"tag": "plain_text", "content": "玄序订单通知 · 客户已取消订单"},
+    }
+    serialized = json.dumps(card, ensure_ascii=False)
+    assert "已取消" in serialized
+    assert "库存预留已释放" in serialized
+
+
+def test_send_feishu_card_posts_signed_message(monkeypatch):
     monkeypatch.setenv("FEISHU_WEBHOOK_URL", "https://open.feishu.cn/open-apis/bot/v2/hook/test")
     monkeypatch.setenv("FEISHU_WEBHOOK_SECRET", "test-secret")
     get_settings.cache_clear()
     captured: dict[str, object] = {}
+    card = new_order_card(order_notification())
 
     async def handler(request: httpx.Request) -> httpx.Response:
         captured["url"] = str(request.url)
@@ -57,7 +79,7 @@ def test_send_feishu_text_posts_signed_message(monkeypatch):
 
     async def send() -> bool:
         async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
-            return await send_feishu_text("订单通知", client)
+            return await send_feishu_card(card, client)
 
     try:
         assert asyncio.run(send()) is True
@@ -67,13 +89,13 @@ def test_send_feishu_text_posts_signed_message(monkeypatch):
     assert captured["url"] == "https://open.feishu.cn/open-apis/bot/v2/hook/test"
     payload = captured["payload"]
     assert isinstance(payload, dict)
-    assert payload["msg_type"] == "text"
-    assert payload["content"] == {"text": "订单通知"}
+    assert payload["msg_type"] == "interactive"
+    assert payload["card"] == card
     assert isinstance(payload["timestamp"], str)
     assert isinstance(payload["sign"], str)
 
 
-def test_send_feishu_text_contains_transport_failures(monkeypatch):
+def test_send_feishu_card_contains_transport_failures(monkeypatch):
     monkeypatch.setenv("FEISHU_WEBHOOK_URL", "https://open.feishu.cn/open-apis/bot/v2/hook/test")
     get_settings.cache_clear()
 
@@ -82,7 +104,7 @@ def test_send_feishu_text_contains_transport_failures(monkeypatch):
 
     async def send() -> bool:
         async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
-            return await send_feishu_text("订单通知", client)
+            return await send_feishu_card(new_order_card(order_notification()), client)
 
     try:
         assert asyncio.run(send()) is False
