@@ -20,7 +20,7 @@ class Settings(BaseSettings):
     feishu_webhook_secret: SecretStr = SecretStr("")
     feishu_webhook_timeout_seconds: float = 5.0
 
-    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+    model_config = SettingsConfigDict(env_file=API_ROOT / ".env", extra="ignore")
 
     @property
     def cors_origins(self) -> list[str]:
