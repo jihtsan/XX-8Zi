@@ -969,7 +969,7 @@ export function AdminDashboard() {
       <main className="admin-page">
         <div className="admin-login-state">
           <p>{error}</p>
-          <Link className="button button-primary" href="/login">
+          <Link className="button button-primary" href="/admin/login">
             后台登录
           </Link>
         </div>

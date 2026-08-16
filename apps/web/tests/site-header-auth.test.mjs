@@ -12,6 +12,7 @@ test("site header resolves and displays the customer session", async () => {
   assert.match(source, /apiRequest<CustomerIdentity>\("\/auth\/me"\)/);
   assert.match(source, /usePathname\(\)/);
   assert.match(source, /maskCustomerPhone\(customer\.phone\)/);
+  assert.doesNotMatch(source, /href=["']\/admin["']/);
 });
 
 test("customer phone is masked before it reaches the header", async () => {

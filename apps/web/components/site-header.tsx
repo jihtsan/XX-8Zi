@@ -31,6 +31,8 @@ export function SiteHeader() {
     };
   }, [pathname]);
 
+  if (pathname.startsWith("/admin")) return null;
+
   return (
     <header className="site-header">
       <div className="shell header-inner">
@@ -50,7 +52,6 @@ export function SiteHeader() {
         <nav aria-label="主导航">
           <Link href="/#catalog">商品档案</Link>
           <Link href="/account/orders">我的订单</Link>
-          <Link href="/admin">管理后台</Link>
         </nav>
         {customer === undefined ? (
           <span

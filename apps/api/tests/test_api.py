@@ -60,6 +60,19 @@ def test_demo_customer_can_create_order():
         assert len(orders.json()) == 1
 
 
+def test_customer_session_cannot_access_admin_api():
+    with TestClient(app) as client:
+        login = client.post(
+            "/api/v1/auth/login",
+            json={"phone": "13800138000", "password": "demo1234"},
+        )
+        assert login.status_code == 200
+
+        dashboard = client.get("/api/v1/admin/dashboard")
+        assert dashboard.status_code == 401
+        assert dashboard.json()["detail"] == "请先登录后台"
+
+
 def test_confirmed_order_requires_admin_to_cancel():
     with TestClient(app) as customer_client:
         login = customer_client.post(
