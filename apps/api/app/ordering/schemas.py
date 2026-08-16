@@ -30,6 +30,16 @@ class OrderOut(BaseModel):
     created_at: datetime
 
 
+class MerchantContactOut(BaseModel):
+    wechat_id: str
+    qr_image_url: str | None
+    contact_note: str
+
+
+class OrderDetailOut(OrderOut):
+    merchant_contact: MerchantContactOut
+
+
 class OrderStatusUpdate(BaseModel):
     status: str
     admin_note: str | None = Field(default=None, max_length=1000)

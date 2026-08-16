@@ -1,13 +1,13 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { apiRequest } from "@/lib/api";
 import { fetchProducts, formatPrice, products, type Product } from "@/lib/products";
 import { ProductVisual } from "./product-visual";
 
 type CurrentUser = { phone: string };
-type CreatedOrder = { number: string };
+type CreatedOrder = { id: number; number: string };
 
 export function OrderConfirm() {
   const search = useSearchParams();
@@ -22,6 +22,7 @@ export function OrderConfirm() {
   const [note, setNote] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const idempotencyKey = useRef<string | null>(null);
 
   useEffect(() => {
     fetchProducts().then(setCatalog).catch(() => undefined);
@@ -35,6 +36,7 @@ export function OrderConfirm() {
     setLoading(true);
     setError("");
     try {
+      idempotencyKey.current ??= crypto.randomUUID();
       const order = await apiRequest<CreatedOrder>("/orders", {
         method: "POST",
         body: JSON.stringify({
@@ -43,10 +45,10 @@ export function OrderConfirm() {
           contact_phone: phone,
           wechat_id: wechat || null,
           note: note || null,
-          idempotency_key: crypto.randomUUID(),
+          idempotency_key: idempotencyKey.current,
         }),
       });
-      router.push(`/orders/success?number=${encodeURIComponent(order.number)}`);
+      router.push(`/orders/success?order=${order.id}`);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "订单提交失败");
     } finally {

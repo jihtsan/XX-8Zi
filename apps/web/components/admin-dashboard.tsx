@@ -888,6 +888,8 @@ export function AdminDashboard() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [settings, setSettings] = useState<MerchantSettings | null>(null);
+  const [qrFile, setQrFile] = useState<File | null>(null);
+  const [qrUploading, setQrUploading] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
 
@@ -962,6 +964,27 @@ export function AdminDashboard() {
     event.preventDefault();
     if (!settings) return;
     await mutate("/admin/merchant-settings", settings);
+  }
+
+  async function uploadQrCode() {
+    if (!qrFile) return;
+    setQrUploading(true);
+    setNotice("");
+    const body = new FormData();
+    body.append("file", qrFile);
+    try {
+      await apiRequest("/admin/merchant-settings/qr-code", {
+        method: "POST",
+        body,
+      });
+      setQrFile(null);
+      setNotice("商家微信二维码已更新，所有订单页面将立即使用新图片");
+      await refresh();
+    } catch (reason) {
+      setNotice(reason instanceof Error ? reason.message : "二维码上传失败");
+    } finally {
+      setQrUploading(false);
+    }
   }
 
   if (error && !data) {
@@ -1320,18 +1343,40 @@ export function AdminDashboard() {
                       required
                     />
                   </label>
-                  <label>
-                    二维码图片 URL
-                    <input
-                      value={settings.qr_image_url ?? ""}
-                      onChange={(event) =>
-                        setSettings({
-                          ...settings,
-                          qr_image_url: event.target.value || null,
-                        })
-                      }
-                    />
-                  </label>
+                  <div className="admin-qr-editor">
+                    {settings.qr_image_url ? (
+                      <Image
+                        src={mediaUrl(settings.qr_image_url) ?? ""}
+                        alt="当前商家微信二维码"
+                        width={128}
+                        height={128}
+                        unoptimized
+                      />
+                    ) : (
+                      <div className="admin-qr-empty">尚未上传二维码</div>
+                    )}
+                    <div>
+                      <label className="file-picker">
+                        {qrFile ? qrFile.name : "选择二维码图片"}
+                        <input
+                          type="file"
+                          accept="image/jpeg,image/png,image/webp"
+                          onChange={(event) =>
+                            setQrFile(event.target.files?.[0] ?? null)
+                          }
+                        />
+                      </label>
+                      <button
+                        className="button button-dark"
+                        type="button"
+                        disabled={!qrFile || qrUploading}
+                        onClick={() => void uploadQrCode()}
+                      >
+                        {qrUploading ? "上传中…" : "上传二维码"}
+                      </button>
+                      <small>支持 JPG、PNG、WebP，更新后立即应用到所有订单详情。</small>
+                    </div>
+                  </div>
                   <label>
                     联系说明
                     <textarea

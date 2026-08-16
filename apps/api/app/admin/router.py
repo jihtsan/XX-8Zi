@@ -17,7 +17,7 @@ from app.ordering.schemas import OrderStatusUpdate
 from app.ordering.service import STATUS_LABELS
 from app.shared.database import get_db
 from app.shared.security import new_session_token, session_expiry, verify_password
-from app.shared.storage import media_url, remove_product_image, save_product_image
+from app.shared.storage import media_url, remove_image, save_merchant_qr, save_product_image
 from app.shared.time import utc_now
 
 from .schemas import (
@@ -349,7 +349,7 @@ async def upload_product_image(
         await db.refresh(image)
     except Exception:
         await db.rollback()
-        remove_product_image(storage_key)
+        remove_image(storage_key)
         raise
     return image_payload(image)
 
@@ -415,7 +415,7 @@ async def delete_product_image(
     await db.delete(image)
     await db.commit()
     if not snapshot_exists:
-        remove_product_image(storage_key)
+        remove_image(storage_key)
     return Response(status_code=204)
 
 
@@ -609,6 +609,39 @@ async def update_merchant_settings(
     settings.contact_note = payload.contact_note
     await db.commit()
     return {"ok": True}
+
+
+@router.post("/merchant-settings/qr-code")
+async def upload_merchant_qr_code(
+    file: UploadFile = File(...),
+    _admin: Admin = Depends(current_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    settings = await db.scalar(select(MerchantSettings).limit(1))
+    if not settings:
+        settings = MerchantSettings(
+            wechat_id="",
+            qr_image_url=None,
+            contact_note="请联系商家确认订单。",
+        )
+        db.add(settings)
+
+    storage_key = await save_merchant_qr(file)
+    old_storage_key = (
+        settings.qr_image_url.removeprefix("/media/")
+        if settings.qr_image_url and settings.qr_image_url.startswith("/media/")
+        else None
+    )
+    settings.qr_image_url = media_url(storage_key)
+    try:
+        await db.commit()
+    except Exception:
+        await db.rollback()
+        remove_image(storage_key)
+        raise
+    if old_storage_key and old_storage_key != storage_key:
+        remove_image(old_storage_key)
+    return {"qr_image_url": settings.qr_image_url}
 
 
 @router.post("/orders/{order_id}/status")

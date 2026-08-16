@@ -52,8 +52,8 @@ export function OrdersList() {
         {orders.map((order) => (
           <article key={order.id} className="order-card">
             {order.product_image_url && <Image className="order-product-image" src={mediaUrl(order.product_image_url) ?? ""} alt={`${order.product_name}订单商品图`} width={96} height={120} unoptimized />}
-            <div><span className="mono-note">{order.number}</span><h2>{order.product_name}</h2><p>{order.variant_name} × {order.quantity}</p></div>
-            <div><span className={`status status-${order.status.toLowerCase()}`}>{order.status_label}</span><strong>参考金额 ¥{order.reference_total}</strong><time>{new Date(order.created_at).toLocaleString("zh-CN")}</time>{order.status === "PENDING_CONFIRMATION" && <button className="table-button" onClick={() => void cancelOrder(order)}>取消订单</button>}{order.status === "CONFIRMED" && <small>如需取消，请联系管理员。</small>}</div>
+            <div><span className="mono-note">{order.number}</span><h2><Link href={`/account/orders/${order.id}`}>{order.product_name}</Link></h2><p>{order.variant_name} × {order.quantity}</p></div>
+            <div><span className={`status status-${order.status.toLowerCase()}`}>{order.status_label}</span><strong>参考金额 ¥{order.reference_total}</strong><time>{new Date(order.created_at).toLocaleString("zh-CN")}</time><Link className="order-detail-link" href={`/account/orders/${order.id}`}>查看订单与联系商家</Link>{order.status === "PENDING_CONFIRMATION" && <button className="table-button" onClick={() => void cancelOrder(order)}>取消订单</button>}{order.status === "CONFIRMED" && <small>如需取消，请联系管理员。</small>}</div>
           </article>
         ))}
       </div>

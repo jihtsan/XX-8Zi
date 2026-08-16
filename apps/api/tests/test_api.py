@@ -73,6 +73,66 @@ def test_customer_session_cannot_access_admin_api():
         assert dashboard.json()["detail"] == "请先登录后台"
 
 
+def test_order_detail_uses_current_merchant_contact_and_enforces_ownership():
+    with TestClient(app) as admin_client:
+        assert (
+            admin_client.post(
+                "/api/v1/admin/auth/login",
+                json={"username": "admin", "password": "admin123!"},
+            ).status_code
+            == 200
+        )
+        uploaded = admin_client.post(
+            "/api/v1/admin/merchant-settings/qr-code",
+            files={"file": ("wechat.png", PNG_1X1, "image/png")},
+        )
+        assert uploaded.status_code == 200
+        assert uploaded.json()["qr_image_url"].startswith("/media/merchant/")
+
+    with TestClient(app) as customer_client:
+        assert (
+            customer_client.post(
+                "/api/v1/auth/login",
+                json={"phone": "13800138000", "password": "demo1234"},
+            ).status_code
+            == 200
+        )
+        created = customer_client.post(
+            "/api/v1/orders",
+            json={
+                "variant_id": 1,
+                "quantity": 1,
+                "contact_phone": "13800138000",
+                "wechat_id": "customer-wechat",
+                "note": "订单详情闭环测试",
+                "idempotency_key": "order-contact-detail-0001",
+            },
+        )
+        assert created.status_code == 201
+
+        detail = customer_client.get(f"/api/v1/orders/{created.json()['id']}")
+        assert detail.status_code == 200
+        assert detail.json()["number"] == created.json()["number"]
+        assert detail.json()["merchant_contact"]["wechat_id"] == "XUANXU_STORE"
+        assert detail.json()["merchant_contact"]["qr_image_url"] == uploaded.json()["qr_image_url"]
+        assert customer_client.get(detail.json()["merchant_contact"]["qr_image_url"]).status_code == 200
+
+    with TestClient(app) as other_customer:
+        assert (
+            other_customer.post(
+                "/api/v1/auth/register",
+                json={
+                    "phone": "13900139000",
+                    "password": "other1234",
+                    "sms_code": "123456",
+                },
+            ).status_code
+            == 200
+        )
+        forbidden = other_customer.get(f"/api/v1/orders/{created.json()['id']}")
+        assert forbidden.status_code == 404
+
+
 def test_confirmed_order_requires_admin_to_cancel():
     with TestClient(app) as customer_client:
         login = customer_client.post(
