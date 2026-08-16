@@ -2,7 +2,7 @@ import secrets
 from datetime import datetime
 from typing import cast
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from sqlalchemy import select, update
 from sqlalchemy.engine import CursorResult
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -13,6 +13,7 @@ from app.identity.models import Customer
 from app.shared.database import get_db
 
 from .models import Order, OrderImageSnapshot, OrderStatusLog
+from .notifications import NewOrderNotification, notify_new_order
 from .schemas import OrderCreate, OrderOut
 from .service import order_payload
 
@@ -26,6 +27,7 @@ def new_order_number() -> str:
 @router.post("", response_model=OrderOut, status_code=201)
 async def create_order(
     payload: OrderCreate,
+    background_tasks: BackgroundTasks,
     customer: Customer = Depends(current_customer),
     db: AsyncSession = Depends(get_db),
 ):
@@ -106,6 +108,17 @@ async def create_order(
     )
     await db.commit()
     await db.refresh(order)
+    background_tasks.add_task(
+        notify_new_order,
+        NewOrderNotification(
+            number=order.number,
+            product_name=order.product_name,
+            variant_name=order.variant_name,
+            quantity=order.quantity,
+            reference_total_cents=order.reference_unit_cents * order.quantity,
+            contact_phone=order.contact_phone,
+        ),
+    )
     return order_payload(order, snapshot)
 
 
