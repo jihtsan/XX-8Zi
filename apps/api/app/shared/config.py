@@ -1,6 +1,7 @@
 from functools import lru_cache
 from pathlib import Path
 
+from pydantic import SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 API_ROOT = Path(__file__).resolve().parents[2]
@@ -15,8 +16,11 @@ class Settings(BaseSettings):
     development_sms_code: str = "123456"
     media_root: str = DEFAULT_MEDIA_ROOT
     max_image_bytes: int = 8 * 1024 * 1024
+    feishu_webhook_url: SecretStr = SecretStr("")
+    feishu_webhook_secret: SecretStr = SecretStr("")
+    feishu_webhook_timeout_seconds: float = 5.0
 
-    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+    model_config = SettingsConfigDict(env_file=API_ROOT / ".env", extra="ignore")
 
     @property
     def cors_origins(self) -> list[str]:

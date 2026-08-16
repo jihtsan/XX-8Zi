@@ -2,6 +2,7 @@ import base64
 import os
 import tempfile
 from pathlib import Path
+from unittest.mock import AsyncMock, patch
 
 from fastapi.testclient import TestClient
 
@@ -40,20 +41,25 @@ def test_demo_customer_can_create_order():
         login = client.post("/api/v1/auth/login", json={"phone": "13800138000", "password": "demo1234"})
         assert login.status_code == 200
 
-        created = client.post(
-            "/api/v1/orders",
-            json={
-                "variant_id": 1,
-                "quantity": 1,
-                "contact_phone": "13800138000",
-                "wechat_id": None,
-                "note": "测试订单",
-                "idempotency_key": "test-order-0001",
-            },
-        )
+        with patch("app.ordering.router.notify_new_order", new_callable=AsyncMock) as notify:
+            created = client.post(
+                "/api/v1/orders",
+                json={
+                    "variant_id": 1,
+                    "quantity": 1,
+                    "contact_phone": "13800138000",
+                    "wechat_id": None,
+                    "note": "测试订单",
+                    "idempotency_key": "test-order-0001",
+                },
+            )
         assert created.status_code == 201
         assert created.json()["status"] == "PENDING_CONFIRMATION"
         assert created.json()["product_image_url"].endswith("seed-amethyst-star-orbit.jpg")
+        notify.assert_awaited_once()
+        notification = notify.await_args.args[0]
+        assert notification.number == created.json()["number"]
+        assert notification.contact_phone == "13800138000"
 
         orders = client.get("/api/v1/orders")
         assert orders.status_code == 200
@@ -179,6 +185,33 @@ def test_confirmed_order_requires_admin_to_cancel():
             )
             assert canceled.status_code == 200
             assert canceled.json()["status"] == "CANCELED"
+
+
+def test_customer_cancel_sends_internal_notification():
+    with TestClient(app) as client:
+        login = client.post("/api/v1/auth/login", json={"phone": "13800138000", "password": "demo1234"})
+        assert login.status_code == 200
+        created = client.post(
+            "/api/v1/orders",
+            json={
+                "variant_id": 3,
+                "quantity": 1,
+                "contact_phone": "13800138000",
+                "wechat_id": None,
+                "note": None,
+                "idempotency_key": "test-order-customer-cancel-0003",
+            },
+        )
+
+        with patch("app.ordering.router.notify_customer_canceled_order", new_callable=AsyncMock) as notify:
+            canceled = client.post(f"/api/v1/orders/{created.json()['id']}/cancel")
+
+        assert canceled.status_code == 200
+        assert canceled.json()["status"] == "CANCELED"
+        notify.assert_awaited_once()
+        notification = notify.await_args.args[0]
+        assert notification.number == created.json()["number"]
+        assert notification.quantity == 1
 
 
 def test_admin_can_manage_inventory_and_current_wechat_settings():

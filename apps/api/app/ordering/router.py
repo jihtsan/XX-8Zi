@@ -2,7 +2,7 @@ import secrets
 from datetime import datetime
 from typing import cast
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from sqlalchemy import select, update
 from sqlalchemy.engine import CursorResult
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -14,6 +14,7 @@ from app.merchant_settings.models import MerchantSettings
 from app.shared.database import get_db
 
 from .models import Order, OrderImageSnapshot, OrderStatusLog
+from .notifications import OrderNotification, notify_customer_canceled_order, notify_new_order
 from .schemas import OrderCreate, OrderDetailOut, OrderOut
 from .service import order_payload
 
@@ -27,6 +28,7 @@ def new_order_number() -> str:
 @router.post("", response_model=OrderOut, status_code=201)
 async def create_order(
     payload: OrderCreate,
+    background_tasks: BackgroundTasks,
     customer: Customer = Depends(current_customer),
     db: AsyncSession = Depends(get_db),
 ):
@@ -110,6 +112,17 @@ async def create_order(
     )
     await db.commit()
     await db.refresh(order)
+    background_tasks.add_task(
+        notify_new_order,
+        OrderNotification(
+            number=order.number,
+            product_name=order.product_name,
+            variant_name=order.variant_name,
+            quantity=order.quantity,
+            reference_total_cents=order.reference_unit_cents * order.quantity,
+            contact_phone=order.contact_phone,
+        ),
+    )
     return order_payload(order, snapshot)
 
 
@@ -161,6 +174,7 @@ async def order_detail(
 @router.post("/{order_id}/cancel", response_model=OrderOut)
 async def cancel_order(
     order_id: int,
+    background_tasks: BackgroundTasks,
     customer: Customer = Depends(current_customer),
     db: AsyncSession = Depends(get_db),
 ):
@@ -209,4 +223,15 @@ async def cancel_order(
     await db.commit()
     await db.refresh(order)
     snapshot = await db.scalar(select(OrderImageSnapshot).where(OrderImageSnapshot.order_id == order.id))
+    background_tasks.add_task(
+        notify_customer_canceled_order,
+        OrderNotification(
+            number=order.number,
+            product_name=order.product_name,
+            variant_name=order.variant_name,
+            quantity=order.quantity,
+            reference_total_cents=order.reference_unit_cents * order.quantity,
+            contact_phone=order.contact_phone,
+        ),
+    )
     return order_payload(order, snapshot)
