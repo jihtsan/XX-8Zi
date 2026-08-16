@@ -34,16 +34,26 @@ export default async function Home() {
           </div>
         </Reveal>
 
-        <Reveal className="hero-orbit" delay={0.1} ariaLabel="六颗同尺寸行星纹理珠子的旋转轨道装饰">
+        <Reveal
+          className="hero-orbit"
+          delay={0.1}
+          ariaLabel="六颗同尺寸行星纹理珠子的旋转轨道装饰"
+        >
           <MineralOrbit />
         </Reveal>
       </section>
 
       <section className="index-strip" aria-label="商品分类">
         <div className="shell index-grid">
-          <a href="#catalog"><span>01</span>紫水晶</a>
-          <a href="#catalog"><span>02</span>绿幽灵</a>
-          <a href="#catalog"><span>03</span>金发晶</a>
+          <a href="#catalog">
+            <span>01</span>紫水晶
+          </a>
+          <a href="#catalog">
+            <span>02</span>绿幽灵
+          </a>
+          <a href="#catalog">
+            <span>03</span>金发晶
+          </a>
           <p className="index-mark">○ ○ ○ ○ ○ ○</p>
         </div>
       </section>
@@ -51,18 +61,30 @@ export default async function Home() {
       <section className="catalog shell" id="catalog">
         <div className="section-heading">
           <div>
-            <p className="eyebrow">SPECIMEN INDEX / {String(products.length).padStart(2, "0")} ITEMS</p>
+            <p className="eyebrow">
+              SPECIMEN INDEX / {String(products.length).padStart(2, "0")} ITEMS
+            </p>
             <h2>本期上架</h2>
           </div>
           <p>商品实拍将保留天然色差与包裹体，每件纹理可能略有不同。</p>
         </div>
         <div className="product-grid">
-          {products.map((product, index) => (
-            <Reveal key={product.slug} delay={Math.min(index * 0.05, 0.2)}>
-              <ProductCard product={product} />
-            </Reveal>
-          ))}
-          <CatalogGridBackground />
+          {products.length === 0 ? (
+            <div className="catalog-empty">
+              <span className="mono-note">CATALOG / EMPTY</span>
+              <h3>暂无已上架商品</h3>
+              <p>新商品完成主图和可售规格配置并上架后，会自动显示在这里。</p>
+            </div>
+          ) : (
+            <>
+              {products.map((product, index) => (
+                <Reveal key={product.slug} delay={Math.min(index * 0.05, 0.2)}>
+                  <ProductCard product={product} />
+                </Reveal>
+              ))}
+              <CatalogGridBackground />
+            </>
+          )}
         </div>
       </section>
 
