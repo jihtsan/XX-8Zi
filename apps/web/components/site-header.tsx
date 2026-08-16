@@ -51,6 +51,7 @@ export function SiteHeader() {
         </Link>
         <nav aria-label="主导航">
           <Link href="/#catalog">商品档案</Link>
+          <Link href="/about">关于我们</Link>
           <Link href="/account/orders">我的订单</Link>
         </nav>
         {customer === undefined ? (
