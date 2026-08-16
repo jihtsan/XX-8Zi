@@ -1,8 +1,9 @@
 from typing import cast
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Response, UploadFile
-from sqlalchemy import func, select, update
+from sqlalchemy import func, or_, select, update
 from sqlalchemy.engine import CursorResult
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.catalog.models import Category, InventoryLog, Product, ProductImage, Variant
@@ -23,8 +24,10 @@ from .schemas import (
     CustomerStatusUpdate,
     InventoryUpdate,
     MerchantSettingsUpdate,
+    ProductCreate,
     ProductImageUpdate,
     ProductUpdate,
+    VariantCreate,
     VariantUpdate,
 )
 
@@ -39,6 +42,33 @@ def image_payload(image: ProductImage) -> dict:
         "alt_text": image.alt_text,
         "url": media_url(image.storage_key),
     }
+
+
+def variant_payload(variant: Variant) -> dict:
+    return {
+        "id": variant.id,
+        "code": variant.code,
+        "name": variant.name,
+        "price_cents": variant.price_cents,
+        "total_stock": variant.total_stock,
+        "reserved_stock": variant.reserved_stock,
+        "available_stock": variant.available_stock,
+        "active": variant.active,
+    }
+
+
+def initial_stock_log(variant: Variant) -> InventoryLog:
+    return InventoryLog(
+        variant_id=variant.id,
+        order_id=None,
+        change_type="INITIAL_STOCK",
+        reason="创建可售规格时设置初始库存",
+        source="admin",
+        total_before=0,
+        reserved_before=0,
+        total_after=variant.total_stock,
+        reserved_after=0,
+    )
 
 
 @router.post("/auth/login")
@@ -94,6 +124,21 @@ async def dashboard(_admin: Admin = Depends(current_admin), db: AsyncSession = D
     }
 
 
+@router.get("/categories")
+async def admin_categories(_admin: Admin = Depends(current_admin), db: AsyncSession = Depends(get_db)):
+    categories = list((await db.scalars(select(Category).order_by(Category.sort_order, Category.id))).all())
+    return [
+        {
+            "id": category.id,
+            "name": category.name,
+            "slug": category.slug,
+            "active": category.active,
+            "sort_order": category.sort_order,
+        }
+        for category in categories
+    ]
+
+
 @router.get("/catalog")
 async def admin_catalog(_admin: Admin = Depends(current_admin), db: AsyncSession = Depends(get_db)):
     rows = (
@@ -122,28 +167,87 @@ async def admin_catalog(_admin: Admin = Depends(current_admin), db: AsyncSession
         result.append(
             {
                 "id": product.id,
+                "category_id": product.category_id,
                 "code": product.code,
+                "slug": product.slug,
                 "name": product.name,
                 "category": category.name,
+                "description": product.description,
+                "material": product.material,
                 "status": product.status,
                 "sort_order": product.sort_order,
                 "images": [image_payload(image) for image in images],
-                "variants": [
-                    {
-                        "id": variant.id,
-                        "code": variant.code,
-                        "name": variant.name,
-                        "price_cents": variant.price_cents,
-                        "total_stock": variant.total_stock,
-                        "reserved_stock": variant.reserved_stock,
-                        "available_stock": variant.available_stock,
-                        "active": variant.active,
-                    }
-                    for variant in variants
-                ],
+                "variants": [variant_payload(variant) for variant in variants],
             }
         )
     return result
+
+
+@router.post("/products", status_code=201)
+async def create_product(
+    payload: ProductCreate,
+    _admin: Admin = Depends(current_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    category = await db.get(Category, payload.category_id)
+    if not category or not category.active:
+        raise HTTPException(status_code=422, detail="请选择一个已启用的商品分类")
+
+    product_code = payload.code.upper()
+    variant_code = payload.initial_variant.code.upper()
+    existing_product = await db.scalar(
+        select(Product.id).where(or_(Product.code == product_code, Product.slug == payload.slug))
+    )
+    if existing_product:
+        raise HTTPException(status_code=409, detail="商品编号或页面路径已存在")
+    existing_variant = await db.scalar(select(Variant.id).where(Variant.code == variant_code))
+    if existing_variant:
+        raise HTTPException(status_code=409, detail="可售规格编号已存在")
+
+    product = Product(
+        category_id=category.id,
+        code=product_code,
+        slug=payload.slug,
+        name=payload.name,
+        description=payload.description,
+        material=payload.material,
+        status="DRAFT",
+        sort_order=payload.sort_order,
+    )
+    db.add(product)
+    try:
+        await db.flush()
+        variant = Variant(
+            product_id=product.id,
+            code=variant_code,
+            name=payload.initial_variant.name,
+            price_cents=payload.initial_variant.price_cents,
+            total_stock=payload.initial_variant.total_stock,
+            active=payload.initial_variant.active,
+        )
+        db.add(variant)
+        await db.flush()
+        if variant.total_stock > 0:
+            db.add(initial_stock_log(variant))
+        await db.commit()
+    except IntegrityError as error:
+        await db.rollback()
+        raise HTTPException(status_code=409, detail="商品或可售规格编号已存在") from error
+
+    return {
+        "id": product.id,
+        "category_id": product.category_id,
+        "code": product.code,
+        "slug": product.slug,
+        "name": product.name,
+        "category": category.name,
+        "description": product.description,
+        "material": product.material,
+        "status": product.status,
+        "sort_order": product.sort_order,
+        "images": [],
+        "variants": [variant_payload(variant)],
+    }
 
 
 @router.patch("/products/{product_id}")
@@ -157,8 +261,25 @@ async def update_product(
     if not product:
         raise HTTPException(status_code=404, detail="商品不存在")
     values = payload.model_dump(exclude_none=True)
+    if "code" in values:
+        values["code"] = values["code"].upper()
     if "status" in values and values["status"] not in {"DRAFT", "PUBLISHED", "UNPUBLISHED"}:
         raise HTTPException(status_code=422, detail="商品状态无效")
+    if "category_id" in values:
+        category = await db.get(Category, values["category_id"])
+        if not category or not category.active:
+            raise HTTPException(status_code=422, detail="请选择一个已启用的商品分类")
+    if "code" in values or "slug" in values:
+        code = values.get("code", product.code)
+        slug = values.get("slug", product.slug)
+        duplicate = await db.scalar(
+            select(Product.id).where(
+                Product.id != product.id,
+                or_(Product.code == code, Product.slug == slug),
+            )
+        )
+        if duplicate:
+            raise HTTPException(status_code=409, detail="商品编号或页面路径已存在")
     if values.get("status") == "PUBLISHED":
         main_image = await db.scalar(
             select(ProductImage.id).where(
@@ -175,7 +296,11 @@ async def update_product(
             raise HTTPException(status_code=409, detail="商品至少需要一个启用的可售规格才能上架")
     for key, value in values.items():
         setattr(product, key, value)
-    await db.commit()
+    try:
+        await db.commit()
+    except IntegrityError as error:
+        await db.rollback()
+        raise HTTPException(status_code=409, detail="商品编号或页面路径已存在") from error
     return {"ok": True, "id": product.id, "status": product.status}
 
 
@@ -294,6 +419,40 @@ async def delete_product_image(
     return Response(status_code=204)
 
 
+@router.post("/products/{product_id}/variants", status_code=201)
+async def create_variant(
+    product_id: int,
+    payload: VariantCreate,
+    _admin: Admin = Depends(current_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    product = await db.get(Product, product_id)
+    if not product:
+        raise HTTPException(status_code=404, detail="商品不存在")
+    variant_code = payload.code.upper()
+    if await db.scalar(select(Variant.id).where(Variant.code == variant_code)):
+        raise HTTPException(status_code=409, detail="可售规格编号已存在")
+
+    variant = Variant(
+        product_id=product.id,
+        code=variant_code,
+        name=payload.name,
+        price_cents=payload.price_cents,
+        total_stock=payload.total_stock,
+        active=payload.active,
+    )
+    db.add(variant)
+    try:
+        await db.flush()
+        if variant.total_stock > 0:
+            db.add(initial_stock_log(variant))
+        await db.commit()
+    except IntegrityError as error:
+        await db.rollback()
+        raise HTTPException(status_code=409, detail="可售规格编号已存在") from error
+    return variant_payload(variant)
+
+
 @router.patch("/variants/{variant_id}")
 async def update_variant(
     variant_id: int,
@@ -304,9 +463,33 @@ async def update_variant(
     variant = await db.get(Variant, variant_id)
     if not variant:
         raise HTTPException(status_code=404, detail="商品规格不存在")
-    for key, value in payload.model_dump(exclude_none=True).items():
+    values = payload.model_dump(exclude_none=True)
+    if "code" in values:
+        values["code"] = values["code"].upper()
+        duplicate = await db.scalar(
+            select(Variant.id).where(Variant.id != variant.id, Variant.code == values["code"])
+        )
+        if duplicate:
+            raise HTTPException(status_code=409, detail="可售规格编号已存在")
+    if values.get("active") is False and variant.active:
+        product = await db.get(Product, variant.product_id)
+        if product and product.status == "PUBLISHED":
+            another_active = await db.scalar(
+                select(Variant.id).where(
+                    Variant.product_id == variant.product_id,
+                    Variant.id != variant.id,
+                    Variant.active.is_(True),
+                )
+            )
+            if not another_active:
+                raise HTTPException(status_code=409, detail="上架商品至少需要一个启用的可售规格")
+    for key, value in values.items():
         setattr(variant, key, value)
-    await db.commit()
+    try:
+        await db.commit()
+    except IntegrityError as error:
+        await db.rollback()
+        raise HTTPException(status_code=409, detail="可售规格编号已存在") from error
     return {"ok": True, "id": variant.id}
 
 

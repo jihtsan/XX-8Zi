@@ -151,6 +151,126 @@ def test_admin_can_manage_inventory_and_current_wechat_settings():
         assert any(log["change_type"] == "MANUAL_ADJUSTMENT" for log in logs.json())
 
 
+def test_admin_can_create_publish_and_sell_a_product_with_variants():
+    with TestClient(app) as admin_client:
+        login = admin_client.post(
+            "/api/v1/admin/auth/login",
+            json={"username": "admin", "password": "admin123!"},
+        )
+        assert login.status_code == 200
+
+        created = admin_client.post(
+            "/api/v1/admin/products",
+            json={
+                "category_id": 1,
+                "code": "CRYSTAL-201",
+                "slug": "moonstone-archive",
+                "name": "月光石档案",
+                "description": "蓝白月光沿珠体表面移动，保留天然棉絮与纹理。",
+                "material": "天然月光石 / 弹力线",
+                "sort_order": 4,
+                "initial_variant": {
+                    "code": "MOON-8-16",
+                    "name": "8mm / 16cm",
+                    "price_cents": 32800,
+                    "total_stock": 3,
+                    "active": True,
+                },
+            },
+        )
+        assert created.status_code == 201
+        product = created.json()
+        assert product["status"] == "DRAFT"
+        assert product["variants"][0]["available_stock"] == 3
+
+        public_slugs = {item["slug"] for item in admin_client.get("/api/v1/catalog/products").json()}
+        assert "moonstone-archive" not in public_slugs
+
+        second_variant = admin_client.post(
+            f"/api/v1/admin/products/{product['id']}/variants",
+            json={
+                "code": "MOON-10-17",
+                "name": "10mm / 17cm",
+                "price_cents": 38800,
+                "total_stock": 2,
+                "active": True,
+            },
+        )
+        assert second_variant.status_code == 201
+
+        uploaded = admin_client.post(
+            f"/api/v1/admin/products/{product['id']}/images",
+            files={"file": ("moonstone.png", PNG_1X1, "image/png")},
+            data={"role": "MAIN", "alt_text": "月光石档案商品主图"},
+        )
+        assert uploaded.status_code == 201
+
+        published = admin_client.patch(
+            f"/api/v1/admin/products/{product['id']}",
+            json={"status": "PUBLISHED"},
+        )
+        assert published.status_code == 200
+
+        public_product = next(
+            item
+            for item in admin_client.get("/api/v1/catalog/products").json()
+            if item["slug"] == "moonstone-archive"
+        )
+        assert len(public_product["variants"]) == 2
+        assert public_product["in_stock"] is True
+
+        duplicate = admin_client.post(
+            f"/api/v1/admin/products/{product['id']}/variants",
+            json={
+                "code": "MOON-10-17",
+                "name": "重复编号",
+                "price_cents": 1,
+                "total_stock": 1,
+                "active": True,
+            },
+        )
+        assert duplicate.status_code == 409
+
+    with TestClient(app) as customer_client:
+        customer_client.post(
+            "/api/v1/auth/login",
+            json={"phone": "13800138000", "password": "demo1234"},
+        )
+        ordered = customer_client.post(
+            "/api/v1/orders",
+            json={
+                "variant_id": second_variant.json()["id"],
+                "quantity": 1,
+                "contact_phone": "13800138000",
+                "wechat_id": None,
+                "note": None,
+                "idempotency_key": "new-product-order-0004",
+            },
+        )
+        assert ordered.status_code == 201
+
+    with TestClient(app) as admin_client:
+        admin_client.post(
+            "/api/v1/admin/auth/login",
+            json={"username": "admin", "password": "admin123!"},
+        )
+        new_product = next(
+            item for item in admin_client.get("/api/v1/admin/catalog").json() if item["id"] == product["id"]
+        )
+        ordered_variant = next(
+            item for item in new_product["variants"] if item["id"] == second_variant.json()["id"]
+        )
+        assert ordered_variant["total_stock"] == 2
+        assert ordered_variant["reserved_stock"] == 1
+        assert ordered_variant["available_stock"] == 1
+
+        logs = admin_client.get("/api/v1/admin/inventory/logs").json()
+        assert any(
+            log["variant_id"] == second_variant.json()["id"] and log["change_type"] == "INITIAL_STOCK"
+            for log in logs
+        )
+
+
 def test_admin_can_upload_and_manage_product_images():
     with TestClient(app) as client:
         login = client.post(
