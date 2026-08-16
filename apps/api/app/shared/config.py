@@ -19,6 +19,8 @@ class Settings(BaseSettings):
     feishu_webhook_url: SecretStr = SecretStr("")
     feishu_webhook_secret: SecretStr = SecretStr("")
     feishu_webhook_timeout_seconds: float = 5.0
+    amap_security_js_code: SecretStr = SecretStr("")
+    amap_proxy_timeout_seconds: float = 8.0
 
     model_config = SettingsConfigDict(env_file=API_ROOT / ".env", extra="ignore")
 
