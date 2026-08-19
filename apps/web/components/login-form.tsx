@@ -4,7 +4,7 @@ import { FormEvent, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { apiRequest } from "@/lib/api";
 
-type Mode = "customer" | "register" | "admin";
+type Mode = "customer" | "register";
 
 export function LoginForm() {
   const [mode, setMode] = useState<Mode>("customer");
@@ -19,13 +19,8 @@ export function LoginForm() {
   function changeMode(next: Mode) {
     setMode(next);
     setError("");
-    if (next === "admin") {
-      setIdentifier("admin");
-      setPassword("admin123!");
-    } else {
-      setIdentifier("13800138000");
-      setPassword("demo1234");
-    }
+    setIdentifier("13800138000");
+    setPassword("demo1234");
   }
 
   async function submit(event: FormEvent) {
@@ -39,12 +34,12 @@ export function LoginForm() {
           body: JSON.stringify({ phone: identifier, password, sms_code: smsCode }),
         });
       } else {
-        await apiRequest(mode === "admin" ? "/admin/auth/login" : "/auth/login", {
+        await apiRequest("/auth/login", {
           method: "POST",
-          body: JSON.stringify(mode === "admin" ? { username: identifier, password } : { phone: identifier, password }),
+          body: JSON.stringify({ phone: identifier, password }),
         });
       }
-      router.push(mode === "admin" ? "/admin" : (search.get("next") ?? "/"));
+      router.push(search.get("next") ?? "/");
       router.refresh();
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "登录失败");
@@ -58,11 +53,10 @@ export function LoginForm() {
       <div className="auth-tabs" role="tablist" aria-label="登录类型">
         <button className={mode === "customer" ? "active" : ""} onClick={() => changeMode("customer")}>客户登录</button>
         <button className={mode === "register" ? "active" : ""} onClick={() => changeMode("register")}>客户注册</button>
-        <button className={mode === "admin" ? "active" : ""} onClick={() => changeMode("admin")}>后台登录</button>
       </div>
       <form onSubmit={submit}>
         <label>
-          {mode === "admin" ? "管理员用户名" : "手机号"}
+          手机号
           <input value={identifier} onChange={(event) => setIdentifier(event.target.value)} autoComplete="username" required />
         </label>
         {mode === "register" && (

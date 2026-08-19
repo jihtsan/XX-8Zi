@@ -45,7 +45,7 @@ def _matches_signature(content_type: str, data: bytes) -> bool:
     return False
 
 
-async def save_product_image(product_id: int, upload: UploadFile) -> str:
+async def save_image(storage_prefix: str, upload: UploadFile) -> str:
     content_type = upload.content_type or ""
     extension = IMAGE_EXTENSIONS.get(content_type)
     if not extension:
@@ -58,7 +58,7 @@ async def save_product_image(product_id: int, upload: UploadFile) -> str:
     if not _matches_signature(content_type, data):
         raise HTTPException(status_code=415, detail="图片文件内容与格式不匹配")
 
-    storage_key = f"products/{product_id}/{uuid4().hex}{extension}"
+    storage_key = f"{storage_prefix}/{uuid4().hex}{extension}"
     target = resolve_storage_key(storage_key)
     target.parent.mkdir(parents=True, exist_ok=True)
     temporary = target.with_suffix(f"{target.suffix}.uploading")
@@ -67,7 +67,15 @@ async def save_product_image(product_id: int, upload: UploadFile) -> str:
     return storage_key
 
 
-def remove_product_image(storage_key: str) -> None:
+async def save_product_image(product_id: int, upload: UploadFile) -> str:
+    return await save_image(f"products/{product_id}", upload)
+
+
+async def save_merchant_qr(upload: UploadFile) -> str:
+    return await save_image("merchant", upload)
+
+
+def remove_image(storage_key: str) -> None:
     target = resolve_storage_key(storage_key)
     if target.exists() and target.is_file():
         target.unlink()

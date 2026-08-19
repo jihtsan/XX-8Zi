@@ -24,8 +24,8 @@ fi
 "${VENV_DIR}/bin/python" -m pip install --disable-pip-version-check -e "${API_DIR}"
 "${VENV_DIR}/bin/python" -m app.shared.migrate
 
-echo "API:  http://127.0.0.1:8000"
-echo "Web:  http://127.0.0.1:3000"
+echo "API:  http://localhost:8000"
+echo "Web:  http://localhost:3000"
 
 "${VENV_DIR}/bin/python" -m uvicorn app.main:app \
   --app-dir "${API_DIR}" \
@@ -41,7 +41,7 @@ cleanup() {
 trap cleanup EXIT INT TERM
 
 cd "${WEB_DIR}"
-export NEXT_PUBLIC_API_URL="${NEXT_PUBLIC_API_URL:-http://127.0.0.1:8000/api/v1}"
+export NEXT_PUBLIC_API_URL="${NEXT_PUBLIC_API_URL:-http://localhost:8000/api/v1}"
 
 if command -v pnpm >/dev/null 2>&1; then
   if [[ ! -d node_modules ]]; then pnpm install; fi

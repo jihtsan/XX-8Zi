@@ -12,6 +12,7 @@ from app.catalog.router import router as catalog_router
 from app.identity import models as _identity_models  # noqa: F401
 from app.identity.router import router as identity_router
 from app.merchant_settings import models as _merchant_models  # noqa: F401
+from app.merchant_settings.amap_proxy import router as amap_proxy_router
 from app.merchant_settings.router import router as merchant_settings_router
 from app.ordering import models as _ordering_models  # noqa: F401
 from app.ordering.router import router as ordering_router
@@ -48,6 +49,7 @@ app.include_router(identity_router, prefix="/api/v1")
 app.include_router(ordering_router, prefix="/api/v1")
 app.include_router(merchant_settings_router, prefix="/api/v1")
 app.include_router(admin_router, prefix="/api/v1")
+app.include_router(amap_proxy_router)
 app.mount("/media", StaticFiles(directory=media_root()), name="media")
 
 

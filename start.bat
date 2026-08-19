@@ -26,13 +26,13 @@ if errorlevel 1 exit /b 1
 "%VENV_DIR%\Scripts\python.exe" -m app.shared.migrate
 if errorlevel 1 exit /b 1
 
-echo API:  http://127.0.0.1:8000
-echo Web:  http://127.0.0.1:3000
+echo API:  http://localhost:8000
+echo Web:  http://localhost:3000
 
 start "玄序 API" cmd /k ""%VENV_DIR%\Scripts\python.exe" -m uvicorn app.main:app --app-dir "%API_DIR%" --host 127.0.0.1 --port 8000"
 
 cd /d "%WEB_DIR%"
-set "NEXT_PUBLIC_API_URL=http://127.0.0.1:8000/api/v1"
+if not defined NEXT_PUBLIC_API_URL set "NEXT_PUBLIC_API_URL=http://localhost:8000/api/v1"
 
 where pnpm >nul 2>nul
 if not errorlevel 1 (

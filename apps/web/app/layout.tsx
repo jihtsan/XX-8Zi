@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import Link from "next/link";
 import { MotionProvider } from "@/components/motion-provider";
 import { SiteHeader } from "@/components/site-header";
 import "./globals.css";
@@ -44,6 +45,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
             <div>
               <strong>玄序 XUANXU</strong>
               <p>矿物与珠串数字档案</p>
+              <p><Link href="/about">关于我们 / 联系方式 →</Link></p>
             </div>
             <p className="mono-note">PRIVATE TRANSACTION / WECHAT CONTACT</p>
             <p>参考价仅供浏览，最终价格、付款与交付方式以私聊确认为准。</p>

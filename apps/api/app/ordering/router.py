@@ -2,7 +2,7 @@ import secrets
 from datetime import datetime
 from typing import cast
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from sqlalchemy import select, update
 from sqlalchemy.engine import CursorResult
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -10,10 +10,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.catalog.models import InventoryLog, Product, ProductImage, Variant
 from app.identity.dependencies import current_customer
 from app.identity.models import Customer
+from app.merchant_settings.models import MerchantSettings
 from app.shared.database import get_db
 
 from .models import Order, OrderImageSnapshot, OrderStatusLog
-from .schemas import OrderCreate, OrderOut
+from .notifications import OrderNotification, notify_customer_canceled_order, notify_new_order
+from .schemas import OrderCreate, OrderDetailOut, OrderOut
 from .service import order_payload
 
 router = APIRouter(prefix="/orders", tags=["orders"])
@@ -26,6 +28,7 @@ def new_order_number() -> str:
 @router.post("", response_model=OrderOut, status_code=201)
 async def create_order(
     payload: OrderCreate,
+    background_tasks: BackgroundTasks,
     customer: Customer = Depends(current_customer),
     db: AsyncSession = Depends(get_db),
 ):
@@ -33,7 +36,10 @@ async def create_order(
     if existing:
         if existing.customer_id != customer.id:
             raise HTTPException(status_code=409, detail="重复请求冲突")
-        return order_payload(existing)
+        snapshot = await db.scalar(
+            select(OrderImageSnapshot).where(OrderImageSnapshot.order_id == existing.id)
+        )
+        return order_payload(existing, snapshot)
 
     row = (
         await db.execute(
@@ -106,6 +112,17 @@ async def create_order(
     )
     await db.commit()
     await db.refresh(order)
+    background_tasks.add_task(
+        notify_new_order,
+        OrderNotification(
+            number=order.number,
+            product_name=order.product_name,
+            variant_name=order.variant_name,
+            quantity=order.quantity,
+            reference_total_cents=order.reference_unit_cents * order.quantity,
+            contact_phone=order.contact_phone,
+        ),
+    )
     return order_payload(order, snapshot)
 
 
@@ -122,9 +139,42 @@ async def list_orders(customer: Customer = Depends(current_customer), db: AsyncS
     return [order_payload(order, snapshot) for order, snapshot in rows]
 
 
+@router.get("/{order_id}", response_model=OrderDetailOut)
+async def order_detail(
+    order_id: int,
+    customer: Customer = Depends(current_customer),
+    db: AsyncSession = Depends(get_db),
+):
+    row = (
+        await db.execute(
+            select(Order, OrderImageSnapshot)
+            .outerjoin(OrderImageSnapshot, OrderImageSnapshot.order_id == Order.id)
+            .where(Order.id == order_id, Order.customer_id == customer.id)
+        )
+    ).first()
+    if not row:
+        raise HTTPException(status_code=404, detail="订单不存在")
+    settings = await db.scalar(select(MerchantSettings).limit(1))
+    merchant_contact = (
+        {
+            "wechat_id": settings.wechat_id,
+            "qr_image_url": settings.qr_image_url,
+            "contact_note": settings.contact_note,
+        }
+        if settings
+        else {
+            "wechat_id": "",
+            "qr_image_url": None,
+            "contact_note": "请联系商家确认订单。",
+        }
+    )
+    return {**order_payload(row[0], row[1]), "merchant_contact": merchant_contact}
+
+
 @router.post("/{order_id}/cancel", response_model=OrderOut)
 async def cancel_order(
     order_id: int,
+    background_tasks: BackgroundTasks,
     customer: Customer = Depends(current_customer),
     db: AsyncSession = Depends(get_db),
 ):
@@ -173,4 +223,15 @@ async def cancel_order(
     await db.commit()
     await db.refresh(order)
     snapshot = await db.scalar(select(OrderImageSnapshot).where(OrderImageSnapshot.order_id == order.id))
+    background_tasks.add_task(
+        notify_customer_canceled_order,
+        OrderNotification(
+            number=order.number,
+            product_name=order.product_name,
+            variant_name=order.variant_name,
+            quantity=order.quantity,
+            reference_total_cents=order.reference_unit_cents * order.quantity,
+            contact_phone=order.contact_phone,
+        ),
+    )
     return order_payload(order, snapshot)
